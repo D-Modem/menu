@@ -3,8 +3,8 @@
 `modemmenu` is the first thing a caller sees once the modems are
 connected.  It asks for a user name and password, checks them against a
 text file, LDAP, an SQL database (MySQL/MariaDB, PostgreSQL, SQLite) or
-the system's own accounts (/etc/shadow or PAM),
-and then offers a menu:
+the system's own accounts (PAM), shows the message of the day and
+offers a menu:
 
 ```
 Welcome to D-Modem.
@@ -14,6 +14,8 @@ Password: ******
 
 Hello alice, connected at 33600 bit/s on 2026-10-10 21:05:09.
 
+The line is down for maintenance on Sunday.
+
 Main menu
 
   [B] Bulletin board
@@ -21,8 +23,12 @@ Main menu
   [S] Shell
   [G] Goodbye (hang up)
 
-Selection:
+Selection: ppp
 ```
+
+A choice is typed and ended with Enter: the item's key, its name or one
+of its aliases, in any case (`p`, `ppp`, `dialup`); `?` shows the menu
+again.  `hotkeys = yes` in `[menu]` selects with one key instead.
 
 The selection starts with the caller's credentials and the details of
 the call: user name, password, the backend that accepted them, the dialed
@@ -57,7 +63,7 @@ caller types itself.  Its exit, like the selection's, hangs up the call.
 
 ## Building
 
-Go 1.22.4 or later:
+Go 1.22 or later:
 
 ```
 make                    # or: go build (-tags pam for PAM)
@@ -69,7 +75,8 @@ make install            # /usr/local/bin/modemmenu, and the samples into
 
 `make` builds with PAM when libpam's headers are installed
 (`libpam0g-dev` on Debian and Ubuntu, `pam-devel` on Fedora); without
-them modemmenu builds with the other backends and `method = shadow`.
+them modemmenu builds with the other backends, and `auth = system` is a
+configuration error.
 
 ## Configuration
 
@@ -79,6 +86,7 @@ short:
 ```
 [general]
 auth = file ldap sql system   ; the backends, asked in this order
+motd_file = /etc/motd         ; the message of the day, before the menu
 
 [file]
 path = /etc/asterisk/modemmenu.users
@@ -91,7 +99,8 @@ host = 127.0.0.1
 after = menu
 
 [item ppp]
-key = P
+key = P                       ; p, ppp (its name) and dialup select it
+aliases = dialup
 label = PPP
 mode = exec
 command = exec /usr/sbin/pppd nodetach noauth local lock passive 192.168.77.1:192.168.77.2 ipparam {user}
@@ -126,15 +135,13 @@ backend that is down (LDAP unreachable, SQL error) is logged and skipped.
   `hash = none` any row means the login is right, for a database that
   checks passwords itself (`crypt()` in PostgreSQL).
 
-- **system**: the machine's own accounts.  `method = shadow` checks the
-  password against `/etc/shadow` (yescrypt, SHA-512, SHA-256, MD5 and
-  bcrypt crypt hashes) and refuses locked accounts and expired accounts
-  or passwords; `method = pam` runs the PAM service `pam_service`
-  (`modemmenu.pam.sample` for `/etc/pam.d/modemmenu`), its auth and
-  account stacks, so anything PAM knows (sssd, Kerberos, OTP modules)
-  works.  Either way accounts below `min_uid` (1000) and root (unless
-  `allow_root = yes`) are not let in, and `groups = dialup` lets in only
-  that group's members.  With `run_as = {user}` the shell selection then
+- **system**: the machine's own accounts, by PAM: the auth and account
+  stacks of the service `pam_service` (`modemmenu.pam.sample` for
+  `/etc/pam.d/modemmenu`), so local accounts and anything PAM knows
+  (sssd, Kerberos, OTP modules) work, expiry and locks included.
+  Accounts below `min_uid` (1000) and root (unless `allow_root = yes`)
+  are not let in, and `groups = dialup` lets in only that group's
+  members.  With `run_as = {user}` the shell selection then
   runs as the caller's own account.
 
 User names must match `user_pattern` (letters, digits, `._@-` by default);
@@ -148,7 +155,7 @@ known ones, and the call is hung up after `attempts` tries or
 |---|---|---|
 | `{user}` | `MODEM_USER` | the user name |
 | `{password}` | `MODEM_PASSWORD` | the password (not with `pass_password = no`) |
-| `{auth}` | `MODEM_AUTH` | `file`, `ldap` or `sql` |
+| `{auth}` | `MODEM_AUTH` | `file`, `ldap`, `sql` or `system` |
 | `{dialed}` | `MODEM_DIALED` | the number dialed |
 | `{callerid}` | `MODEM_CALLERID` | the caller's number |
 | `{baud}` | `MODEM_BAUD` | the connect rate towards the caller, bit/s |
@@ -179,9 +186,9 @@ hangup` (the default) hangs up.
 
 ## Security notes
 
-- `method = shadow` must read `/etc/shadow`: run Asterisk as root or add
-  its user to the `shadow` group.  PAM's `pam_unix` checks other users'
-  passwords only for root.
+- PAM's `pam_unix` checks other users' passwords only for root: for
+  local accounts with `auth = system`, Asterisk (and so modemmenu) must
+  run as root.
 - Asterisk usually runs as its own user: the users file (and
   modemmenu.conf, which may hold database and LDAP passwords) must be
   readable by it, and by no one else.  `run_as` needs modemmenu to run as
@@ -201,12 +208,12 @@ hangup` (the default) hangs up.
 
 `make test` checks the password schemes, the file and SQLite backends
 and the telnet client, and runs modemmenu on a pty as app_dmodem does: a
-wrong and a right login, an rlogin BBS and back to the menu, and an exec
-selection's environment and session file.
-`/etc/shadow` handling is tested with files of its own (each hash
-scheme, locked and expired accounts, uids and groups).
+wrong and a right login, the message of the day, choices by key, name
+and alias, an rlogin BBS and back to the menu, and an exec selection's
+environment and session file.  The system backend's uid, root and group
+rules are tested with PAM replaced.
 `MODEMMENU_TEST_PAM=user:password make test` (as root, with
-`/etc/pam.d/modemmenu`) also tests the PAM method;
+`/etc/pam.d/modemmenu`) also tests PAM against a real account;
 `MODEMMENU_TEST_LDAP=ldap://host:port` also tests the LDAP backend
 against a server with `uid=lduser,ou=people,dc=example,dc=com`
 (password `ldpass`).

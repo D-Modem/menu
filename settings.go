@@ -14,6 +14,8 @@ type general struct {
 	loginPrompt    string
 	passwordPrompt string
 	welcome        string
+	motd           string
+	motdFile       string
 	goodbye        string
 	attempts       int
 	failDelay      time.Duration
@@ -27,7 +29,8 @@ type general struct {
 
 type menuItem struct {
 	name        string
-	key         string
+	key         string   // shown in the menu
+	choices     []string // what selects it, upper case: key, name, aliases
 	label       string
 	mode        string // exec, tcp, rlogin, telnet
 	command     string
@@ -50,7 +53,8 @@ type settings struct {
 	general
 	menuTitle  string
 	menuPrompt string
-	hangupKey  string
+	hangup     []string // what hangs up, upper case; the first one shown
+	hotkeys    bool     // one key selects, without a line end
 	items      []*menuItem
 	backends   []authenticator
 }
@@ -74,6 +78,8 @@ func loadSettings(path string) (*settings, error) {
 	s.loginPrompt = unescape(g.get("login_prompt", `\r\nlogin: `))
 	s.passwordPrompt = unescape(g.get("password_prompt", "Password: "))
 	s.welcome = unescape(g.get("welcome", `\r\nWelcome, {user}.\r\n`))
+	s.motd = unescape(g.get("motd", ""))
+	s.motdFile = g.get("motd_file", "")
 	s.goodbye = unescape(g.get("goodbye", `\r\nGoodbye.\r\n`))
 	s.mask = g.get("password_echo", "*")
 	if s.mask == "none" {
@@ -111,7 +117,7 @@ func loadSettings(path string) (*settings, error) {
 			a, err = newLDAPAuth(c.section("ldap"))
 		case "sql":
 			a, err = newSQLAuth(c.section("sql"))
-		case "system":
+		case "system", "pam":
 			a, err = newSystemAuth(c.section("system"))
 		default:
 			err = fmt.Errorf("[general] auth: unknown backend %q (file, ldap, sql, system)", name)
@@ -125,7 +131,10 @@ func loadSettings(path string) (*settings, error) {
 	m := c.section("menu")
 	s.menuTitle = unescape(m.get("title", `\r\nMain menu\r\n`))
 	s.menuPrompt = unescape(m.get("prompt", `\r\nSelection: `))
-	s.hangupKey = strings.ToUpper(m.get("hangup_key", "G"))
+	s.hangup = fields(strings.ToUpper(m.get("hangup", "G goodbye bye logoff")))
+	if len(s.hangup) == 0 {
+		return nil, fmt.Errorf("[menu] hangup: nothing to hang up with")
+	}
 	var names []string
 	if m.has("items") {
 		names = fields(m.get("items", ""))
@@ -136,7 +145,13 @@ func loadSettings(path string) (*settings, error) {
 			}
 		}
 	}
-	keys := map[string]string{s.hangupKey: "hangup_key"}
+	if s.hotkeys, err = m.bool("hotkeys", false); err != nil {
+		return nil, err
+	}
+	keys := map[string]string{}
+	for _, h := range s.hangup {
+		keys[h] = "[menu] hangup"
+	}
 	for _, name := range names {
 		sec, ok := c.byName["item "+name]
 		if !ok {
@@ -146,14 +161,26 @@ func loadSettings(path string) (*settings, error) {
 		if err != nil {
 			return nil, err
 		}
-		if prev, dup := keys[it.key]; dup {
-			return nil, fmt.Errorf("[item %s] key %s: also the key of %s", name, it.key, prev)
+		for _, c := range it.choices {
+			if prev, dup := keys[c]; dup && prev != "[item "+name+"]" {
+				return nil, fmt.Errorf("[item %s] %s: also selects %s", name, c, prev)
+			}
+			keys[c] = "[item " + name + "]"
 		}
-		keys[it.key] = "[item " + name + "]"
 		s.items = append(s.items, it)
 	}
 	if len(s.items) == 0 {
 		return nil, fmt.Errorf("%s: no [item ...] in the menu", path)
+	}
+	if s.hotkeys {
+		for _, it := range s.items {
+			if len(it.key) != 1 {
+				return nil, fmt.Errorf("[item %s] key %s: hotkeys = yes takes one character", it.name, it.key)
+			}
+		}
+		if len(s.hangup[0]) != 1 {
+			return nil, fmt.Errorf("[menu] hangup: with hotkeys = yes, the first is one character")
+		}
 	}
 	return s, nil
 }
@@ -162,8 +189,16 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 	var err error
 	it := &menuItem{name: name}
 	it.key = strings.ToUpper(sec.get("key", name[:1]))
-	if len(it.key) != 1 {
-		return nil, fmt.Errorf("[item %s] key: one character", name)
+	if it.key == "" || strings.ContainsAny(it.key, " \t,") {
+		return nil, fmt.Errorf("[item %s] key: %q (one word)", name, it.key)
+	}
+	// the key, the item's name and its aliases all select it
+	it.choices = []string{it.key}
+	for _, c := range append([]string{name}, fields(sec.get("aliases", ""))...) {
+		c = strings.ToUpper(c)
+		if c != it.key && !contains(it.choices, c) {
+			it.choices = append(it.choices, c)
+		}
 	}
 	it.label = sec.get("label", name)
 	it.mode = strings.ToLower(sec.get("mode", "exec"))
@@ -218,4 +253,13 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 func crlf(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	return strings.ReplaceAll(s, "\n", "\r\n")
+}
+
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }

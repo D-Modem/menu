@@ -18,7 +18,7 @@ func TestPAM(t *testing.T) {
 		t.Skip("MODEMMENU_TEST_PAM is not set")
 	}
 	user, pw, _ := strings.Cut(cred, ":")
-	a, err := newSystemAuth(&section{name: "system", vals: map[string]string{"method": "pam"}})
+	a, err := newSystemAuth(&section{name: "system", vals: map[string]string{}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,4 +1,4 @@
-# modemmenu: the login and menu of a dial-up line (Go 1.22.4 or later)
+# modemmenu: the login and menu of a dial-up line (Go 1.22 or later)
 #
 #   make                 build, with PAM when libpam's headers are there
 #   make PAM=0           without PAM (PAM=1: with, or fail)

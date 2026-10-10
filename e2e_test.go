@@ -133,6 +133,7 @@ func TestLine(t *testing.T) {
 
 	users := filepath.Join(dir, "users")
 	os.WriteFile(users, []byte("alice:{PLAIN}secret\n"), 0o600)
+	os.WriteFile(filepath.Join(dir, "motd"), []byte("Line closed Sunday\n"), 0o600)
 	envOut := filepath.Join(dir, "env")
 	conf := filepath.Join(dir, "modemmenu.conf")
 	os.WriteFile(conf, []byte(fmt.Sprintf(`
@@ -141,6 +142,8 @@ log = %s
 auth = file
 fail_delay = 0
 banner = "Test line\r\n"
+motd = "MOTD for {user}\r\n"
+motd_file = %s
 [file]
 path = %s
 [item bbs]
@@ -151,7 +154,7 @@ host = 127.0.0.1
 port = %d
 after = menu
 [item shell]
-key = S
+key = SH
 label = Shell
 mode = exec
 tty = sane
@@ -159,12 +162,13 @@ after = menu
 command = PS1='sh> ' exec sh -i
 [item info]
 key = I
+aliases = details
 label = Info
 mode = exec
 session_file = yes
 tty = sane
 command = env > %s; cat "$MODEM_SESSION_FILE" >> %s; echo args: {user} {baud} {dialed}; read x; echo "read $x"
-`, filepath.Join(dir, "log"), users, ln.Addr().(*net.TCPAddr).Port, envOut, envOut)), 0o600)
+`, filepath.Join(dir, "log"), filepath.Join(dir, "motd"), users, ln.Addr().(*net.TCPAddr).Port, envOut, envOut)), 0o600)
 
 	m, s := openPty(t)
 	defer m.Close()
@@ -192,9 +196,18 @@ command = env > %s; cat "$MODEM_SESSION_FILE" >> %s; echo args: {user} {baud} {d
 	c.expect("Password: ")
 	c.send("secret\r")
 	c.expect("Welcome, alice.")
+	c.expect("MOTD for alice\r\nLine closed Sunday\r\n")
+	c.expect("[I]  Info")
 	c.expect("Selection: ")
 
-	c.send("b\r")
+	// an unknown choice, the menu again, then the BBS by its name
+	c.send("xyz\r")
+	c.expect("Unknown selection")
+	c.expect("Selection: ")
+	c.send("?\r")
+	c.expect("Main menu")
+	c.expect("Selection: ")
+	c.send("bbs\r")
 	c.expect("Welcome to the BBS, alice")
 	if h := <-hello; h != "\x00secret\x00alice\x00ansi/33600\x00" {
 		t.Errorf("rlogin handshake %q", h)
@@ -204,7 +217,7 @@ command = env > %s; cat "$MODEM_SESSION_FILE" >> %s; echo args: {user} {baud} {d
 	c.expect("Selection: ")
 
 	// a cooked shell: ^C stops its command, not the session
-	c.send("S")
+	c.send("sh\r")
 	c.expect("sh> ")
 	c.send("sleep 30\r")
 	c.expect("sleep 30")
@@ -216,7 +229,7 @@ command = env > %s; cat "$MODEM_SESSION_FILE" >> %s; echo args: {user} {baud} {d
 	c.send("exit\r")
 	c.expect("Selection: ")
 
-	c.send("I")
+	c.send("Details\r")
 	c.expect("args: alice 33600 5551000")
 	c.send("typed\r")
 	c.expect("read typed")

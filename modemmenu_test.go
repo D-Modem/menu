@@ -185,3 +185,40 @@ func (r *recorder) Write(p []byte) (int, error) {
 	*r.b = append(*r.b, p...)
 	return len(p), nil
 }
+
+func TestMenuSettings(t *testing.T) {
+	dir := t.TempDir()
+	users := filepath.Join(dir, "users")
+	os.WriteFile(users, nil, 0o600)
+	load := func(menu, items string) (*settings, error) {
+		p := filepath.Join(dir, "c.conf")
+		os.WriteFile(p, []byte("[general]\nauth = file\n[file]\npath = "+users+"\n[menu]\n"+menu+"\n"+items), 0o600)
+		return loadSettings(p)
+	}
+	ppp := "[item ppp]\nkey = P\naliases = dialup net\ncommand = true\n"
+	s, err := load("", ppp+"[item bbs]\nkey = BBS\ncommand = true\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for choice, want := range map[string]string{"P": "ppp", "PPP": "ppp", "NET": "ppp", "BBS": "bbs", "B": ""} {
+		it := s.selects(choice)
+		if want == "" && it != nil || want != "" && (it == nil || it.name != want) {
+			t.Errorf("%s selects %v, want %q", choice, it, want)
+		}
+	}
+	if !contains(s.hangup, "GOODBYE") {
+		t.Errorf("hangup %v", s.hangup)
+	}
+	for _, c := range []struct{ menu, items string }{
+		{"", ppp + "[item net]\ncommand = true\n"}, // net: an alias of ppp
+		{"hangup = P", ppp},                        // P hangs up and selects ppp
+		{"hotkeys = yes", ppp + "[item bbs]\nkey = BBS\ncommand = true\n"},
+	} {
+		if _, err := load(c.menu, c.items); err == nil {
+			t.Errorf("%q %q: no error", c.menu, c.items)
+		}
+	}
+	if _, err := load("hotkeys = yes", ppp); err != nil {
+		t.Errorf("hotkeys with one-character keys: %v", err)
+	}
+}

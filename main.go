@@ -157,6 +157,7 @@ func run(t *term, s *settings, sess *session) int {
 		return 1
 	}
 	t.write(expand(s.welcome, sess.vars(false), nil))
+	t.write(motd(s, sess))
 	err := menu(t, s, sess)
 	switch {
 	case err == nil:
@@ -226,47 +227,86 @@ func login(t *term, s *settings, sess *session) error {
 	return errors.New("too many attempts")
 }
 
+// motd: the message of the day, motd then motd_file (read at each login,
+// so that edits show at once), {placeholders} expanded
+func motd(s *settings, sess *session) string {
+	m := s.motd
+	if s.motdFile != "" {
+		b, err := os.ReadFile(s.motdFile)
+		if err != nil {
+			logf("motd_file: %v", err)
+		} else {
+			m += crlf(string(b))
+		}
+	}
+	return expand(m, sess.vars(false), nil)
+}
+
 // menu until the caller hangs up, says goodbye or a selection ends with
 // after = hangup
 func menu(t *term, s *settings, sess *session) error {
+	redraw := true
 	for {
-		var b strings.Builder
-		b.WriteString(expand(s.menuTitle, sess.vars(false), nil))
-		for _, it := range s.items {
-			fmt.Fprintf(&b, "\r\n  [%s] %s", it.key, it.label)
+		if redraw {
+			var b strings.Builder
+			b.WriteString(expand(s.menuTitle, sess.vars(false), nil))
+			width := len(s.hangup[0])
+			for _, it := range s.items {
+				width = max(width, len(it.key))
+			}
+			for _, it := range s.items {
+				fmt.Fprintf(&b, "\r\n  [%s]%*s %s", it.key, width-len(it.key), "", it.label)
+			}
+			fmt.Fprintf(&b, "\r\n  [%s]%*s Goodbye (hang up)\r\n", s.hangup[0], width-len(s.hangup[0]), "")
+			if err := t.write(b.String()); err != nil {
+				return err
+			}
 		}
-		fmt.Fprintf(&b, "\r\n  [%s] Goodbye (hang up)\r\n", s.hangupKey)
-		b.WriteString(s.menuPrompt)
-		if err := t.write(b.String()); err != nil {
+		if err := t.write(s.menuPrompt); err != nil {
 			return err
 		}
 
-		var it *menuItem
-		for it == nil {
-			key, err := t.readKey(time.Now().Add(s.idleTimeout))
-			if err == io.EOF || key == s.hangupKey {
-				t.write(s.hangupKey + "\r\n")
-				return nil
+		// a line (the key, the item's name or an alias: P, ppp), or with
+		// hotkeys one key that selects at once
+		var choice string
+		var err error
+		if s.hotkeys {
+			if choice, err = t.readKey(time.Now().Add(s.idleTimeout)); err == nil {
+				t.write(choice + "\r\n")
 			}
-			if err != nil {
-				return err
-			}
-			for _, i := range s.items {
-				if i.key == key {
-					it = i
-				}
-			}
+		} else {
+			choice, err = t.readLine(time.Now().Add(s.idleTimeout), s.maxInput, true, "")
 		}
-		// what the caller types from here on is the selection's (a line
-		// end after the key too: nothing is read ahead)
-		t.write(it.key + "\r\n")
+		choice = strings.ToUpper(strings.TrimSpace(choice))
+		if err == io.EOF || contains(s.hangup, choice) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		redraw = false
+		if choice == "" {
+			continue
+		}
+		if choice == "?" || choice == "MENU" {
+			redraw = true
+			continue
+		}
+		it := s.selects(choice)
+		if it == nil {
+			t.write("Unknown selection; ? shows the menu.\r\n")
+			continue
+		}
+		// what the caller types from here on is the selection's: nothing
+		// is read ahead
 
 		sess.Selection = it.name
 		logf("start %s user=%s mode=%s", it.name, sess.User, it.mode)
-		err := launch(t, it, sess, logf)
+		err = launch(t, it, sess, logf)
 		if errors.Is(err, errHangup) || terminated.Load() {
 			return errHangup
 		}
+		redraw = true
 		if err != nil {
 			logf("%s: %v", it.name, err)
 			t.write("\r\n\r\n" + it.label + " is not available now.\r\n")
@@ -277,4 +317,14 @@ func menu(t *term, s *settings, sess *session) error {
 			return nil
 		}
 	}
+}
+
+// selects: the item a choice (upper case) selects
+func (s *settings) selects(choice string) *menuItem {
+	for _, it := range s.items {
+		if contains(it.choices, choice) {
+			return it
+		}
+	}
+	return nil
 }
