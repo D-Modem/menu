@@ -17,6 +17,7 @@ import (
 	"log/syslog"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -37,6 +38,9 @@ func main() {
 	callerID := flag.String("callerid", os.Getenv("DMODEM_CALLERID"), "the caller's `number` (default $DMODEM_CALLERID)")
 	check := flag.Bool("check", false, "check the configuration and exit")
 	hash := flag.Bool("hash", false, "read a password, print its bcrypt hash for the users file and exit")
+	serveFlag := flag.Bool("serve", false, "serve sessions on the [server] listen socket")
+	listenAt := flag.String("listen", "", "with -serve: listen on this unix socket `path` (or tcp:host:port) instead of [server] listen")
+	upstreamFlag := flag.Bool("upstream", false, "a session of -serve with trust_user (internal)")
 	flag.Parse()
 
 	if *hash {
@@ -54,7 +58,22 @@ func main() {
 	if err := openLog(s.log); err != nil {
 		fmt.Fprintln(os.Stderr, "modemmenu: log:", err)
 	}
-	sess := newSession(*rate, *dialed, *callerID, time.Now())
+	if *serveFlag {
+		if *listenAt != "" {
+			s.server.listen = *listenAt
+		}
+		os.Exit(serve(s, *config))
+	}
+	handleSignals()
+	connected := time.Now()
+	if e, err := strconv.ParseInt(os.Getenv("DMODEM_CONNECTED"), 10, 64); err == nil && e > 0 {
+		connected = time.Unix(e, 0)
+	}
+	sess := newSession(*rate, *dialed, *callerID, connected)
+	if upstream(sess, *upstreamFlag) && !s.userPattern.MatchString(sess.User) {
+		logf("upstream user %q: not a name we take", sess.User)
+		sess.User, sess.Password, sess.Auth = "", "", ""
+	}
 	t := newTerm(os.Stdin, os.Stdout)
 	code := run(t, s, sess)
 	t.close()
@@ -64,7 +83,7 @@ func main() {
 // terminated: SIGTERM or SIGHUP came
 var terminated atomic.Bool
 
-func init() {
+func handleSignals() {
 	// a selection on a cooked line gets ^C and ^\ from the terminal, and
 	// so would we: caught (not ignored, which the selection would inherit)
 	// and dropped.  A shell that took the terminal for a job of its own
@@ -82,6 +101,7 @@ func init() {
 			p := child
 			childMu.Unlock()
 			if p == nil {
+				logf("%v: hung up", sig)
 				os.Exit(1)
 			}
 			// the program ends, its session file is removed, then us
@@ -149,7 +169,10 @@ func run(t *term, s *settings, sess *session) int {
 	if t.write(expand(s.banner, sess.vars(false), nil)) != nil {
 		return 1
 	}
-	if err := login(t, s, sess); err != nil {
+	if sess.User != "" {
+		// an upstream menu logged the caller in
+		logf("login user=%s auth=%s %v", sess.User, sess.Auth, sess)
+	} else if err := login(t, s, sess); err != nil {
 		if !errors.Is(err, errHangup) {
 			t.write("\r\n")
 		}

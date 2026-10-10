@@ -35,8 +35,15 @@ and time of the connection.
 ## Running it from app_dmodem
 
 `app_dmodem`, the Asterisk module of
-[D-Modem-RE](https://github.com/Neo-Desktop/D-Modem-RE) (`asterisk/`), runs
-it as a `mode = exec` program on the caller's line:
+[D-Modem-RE](https://github.com/Neo-Desktop/D-Modem-RE) (`asterisk/`),
+hands it the caller's line in one of two ways: it starts modemmenu for
+each call (`mode = exec`), or connects each call to one `modemmenu
+-serve` on a unix socket (`mode = unix`, below).
+
+### A program for each call
+
+app_dmodem runs modemmenu as a `mode = exec` program on the caller's
+line:
 
 ```
 ; dmodem.conf
@@ -57,6 +64,54 @@ set these instead, e.g. under a getty on another modem.
 
 The line is raw (app_dmodem's pty): modemmenu echoes and edits what the
 caller types itself.  Its exit, like the selection's, hangs up the call.
+
+### One server on a unix socket
+
+`modemmenu -serve` listens on `[server] listen` (a unix socket, or
+`tcp:host:port`) and app_dmodem connects each call to it:
+
+```
+; dmodem.conf
+[menu]
+mode = unix
+path = /run/modemmenu/modemmenu.sock
+header = yes
+
+; modemmenu.conf
+[server]
+listen = /run/modemmenu/modemmenu.sock
+socket_mode = 0660
+socket_group = asterisk
+```
+
+A socket has no environment, so app_dmodem's `header = yes` sends the
+call's details first: `DMODEM_CHANNEL`, `DMODEM_PROFILE`, `DMODEM_RATE`,
+`DMODEM_CALLERID`, `DMODEM_DIALED` and `DMODEM_CONNECTED` (Unix time),
+one `NAME=value` per line, then an empty line, then the caller's bytes.
+`[server] header = yes` (the default) reads it; with `header = no` the
+caller's bytes come from the start and the details are unknown.
+
+Each connection gets a session of its own: a new pty with modemmenu on
+it, as `mode = exec` would give it, so pppd, shells and `^C` work the
+same.  The caller hanging up hangs up the pty; the session ending closes
+the connection, which hangs up the call.
+
+| `[server]` option | default | |
+|---|---|---|
+| `listen` | `/run/modemmenu/modemmenu.sock` | a unix socket's path, or `tcp:host:port` |
+| `socket_mode` | `0660` | the socket's permissions: who may connect |
+| `socket_group` | | the socket's group, e.g. Asterisk's |
+| `header` | `yes` | read the session header first |
+| `header_timeout` | `10` | seconds for the header to come |
+| `trust_user` | `no` | a header's `MODEM_USER` is logged in already (below) |
+| `max_sessions` | `32` | sessions at once; more callers hear the lines are busy |
+
+`-listen PATH` overrides `listen`.  `SIGTERM` hangs up every session,
+removes the socket and ends the server; a stale socket left by a server
+that died is replaced at start, a live one is not.
+[modemmenu.service.sample](modemmenu.service.sample) runs it under
+systemd, which also makes `/run/modemmenu`.  Each connection is logged
+with its peer's pid and uid.
 
 ## Building
 
@@ -235,9 +290,45 @@ How it reaches each kind of selection:
 - **tcp** and **telnet**: `send`, e.g. `send = "{user}\r{password}\r"`,
   is sent once connected; telnet negotiates binary, echo and the
   terminal type.
+- **unix**: like **tcp**, raw, to a server on the unix socket `path`.
+  `tcp`, `telnet` and `rlogin` items take a `path` too, for their
+  protocol on a unix socket.
+- **header** (`header = yes`, on any of the socket kinds): the session
+  first, `MODEM_*` `NAME=value` lines and an empty line (the password
+  only with `pass_password`), before `send` or the protocol.
 
 `after = menu` returns to the menu when the selection ends, `after =
 hangup` (the default) hangs up.
+
+### Handing a caller to another menu
+
+An item can hand the caller to another menu application on a unix
+socket.  To another `modemmenu -serve`, with the session header and that
+server's `trust_user = yes`, the caller stays logged in: it shows its own
+banner, welcome and menu, with the user, the password (with
+`pass_password`), `MODEM_AUTH` as `upstream:<backend>`, and the call's
+rate, number and time from the header.
+
+```
+; the front menu
+[item more]
+key = M
+label = More services
+mode = unix
+path = /run/modemmenu/more.sock
+header = yes
+after = menu
+
+; the other menu's modemmenu.conf
+[server]
+listen = /run/modemmenu/more.sock
+trust_user = yes
+socket_mode = 0600
+```
+
+`trust_user` believes whoever can connect: keep that socket to the front
+menu's user (`socket_mode`, `socket_group`).  Without it, the other menu
+asks the caller to log in again.
 
 ## Security notes
 
@@ -252,6 +343,10 @@ hangup` (the default) hangs up.
   if the program reads the file instead.
 - Never put `{password}` in a command line: other users see the
   arguments of every process.  Use `MODEM_PASSWORD` or the session file.
+- A server's socket is only as safe as its permissions: anyone who can
+  connect gets a login prompt, and with `trust_user` a login as whoever
+  they name.  Keep `socket_mode` and `socket_group` to Asterisk or the
+  front menu.
 - The log (syslog's auth facility by default) gets logins, failures and
   selections, never passwords.  It is never the line: the caller would
   see it.
@@ -263,8 +358,11 @@ the menu's choices and the telnet client, and runs modemmenu on a pty as
 app_dmodem does: a wrong and a right login, the message of the day,
 choices by key, name and alias, an unknown choice and `?`, an rlogin BBS
 and back to the menu, a cooked shell, and an exec selection's
-environment and session file.  The system backend's uid, root and group
-rules are tested with PAM replaced.
+environment and session file.  It also runs `modemmenu -serve` on a unix
+socket: a session from an app_dmodem header (on a pty of its own), a
+caller hanging up, another modemmenu handing a logged-in caller over by
+a `mode = unix` item, and `SIGTERM`.  The system backend's uid, root and
+group rules are tested with PAM replaced.
 
 Two more tests run when their servers are given:
 

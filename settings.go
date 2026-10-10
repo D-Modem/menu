@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -36,6 +37,8 @@ type menuItem struct {
 	command     string
 	host        string
 	port        int
+	path        string // a unix socket instead of host and port
+	header      bool   // the session header first
 	send        string
 	rloginLocal string
 	rloginUser  string
@@ -49,8 +52,20 @@ type menuItem struct {
 	timeout     time.Duration
 }
 
+// serverSettings: [server], for modemmenu -serve
+type serverSettings struct {
+	listen        string // a unix socket's path, or tcp:host:port
+	socketMode    os.FileMode
+	socketGroup   string
+	header        bool
+	headerTimeout time.Duration
+	trustUser     bool
+	maxSessions   int
+}
+
 type settings struct {
 	general
+	server     *serverSettings
 	menuTitle  string
 	menuPrompt string
 	hangup     []string // what hangs up, upper case; the first one shown
@@ -126,6 +141,10 @@ func loadSettings(path string) (*settings, error) {
 			return nil, err
 		}
 		s.backends = append(s.backends, a)
+	}
+
+	if s.server, err = loadServer(c.section("server")); err != nil {
+		return nil, err
 	}
 
 	m := c.section("menu")
@@ -205,6 +224,10 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 	it.command = sec.get("command", "")
 	it.host = sec.get("host", "127.0.0.1")
 	it.send = sec.get("send", "")
+	it.path = sec.get("path", "")
+	if it.header, err = sec.bool("header", false); err != nil {
+		return nil, err
+	}
 	it.rloginLocal = sec.get("rlogin_client_user", "{password}")
 	it.rloginUser = sec.get("rlogin_server_user", "{user}")
 	it.rloginTerm = sec.get("rlogin_terminal", "ansi/{baud}")
@@ -220,6 +243,13 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 	}
 	if it.timeout, err = sec.duration("connect_timeout", 10*time.Second); err != nil {
 		return nil, err
+	}
+	if it.mode == "unix" {
+		// raw bytes over a unix socket: tcp with a path
+		it.mode = "tcp"
+		if it.path == "" {
+			return nil, fmt.Errorf("[item %s] mode = unix needs a path", name)
+		}
 	}
 	defPort := map[string]int{"tcp": 23, "telnet": 23, "rlogin": 513}[it.mode]
 	if it.port, err = sec.int("port", defPort); err != nil {
@@ -237,8 +267,11 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 		if it.runAs != "" {
 			return nil, fmt.Errorf("[item %s] run_as is for mode = exec", name)
 		}
+		if it.path != "" && !strings.HasPrefix(it.path, "/") {
+			return nil, fmt.Errorf("[item %s] path: %q (an absolute path)", name, it.path)
+		}
 	default:
-		return nil, fmt.Errorf("[item %s] mode: %q (exec, tcp, telnet or rlogin)", name, it.mode)
+		return nil, fmt.Errorf("[item %s] mode: %q (exec, tcp, unix, telnet or rlogin)", name, it.mode)
 	}
 	if it.tty != "raw" && it.tty != "sane" {
 		return nil, fmt.Errorf("[item %s] tty: %q (raw or sane)", name, it.tty)
@@ -262,4 +295,39 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func loadServer(sec *section) (*serverSettings, error) {
+	var err error
+	srv := &serverSettings{
+		listen:      sec.get("listen", "/run/modemmenu/modemmenu.sock"),
+		socketGroup: sec.get("socket_group", ""),
+	}
+	mode, err := strconv.ParseUint(sec.get("socket_mode", "0660"), 8, 32)
+	if err != nil || mode > 0o777 {
+		return nil, fmt.Errorf("[server] socket_mode: %q (octal, e.g. 0660)", sec.get("socket_mode", ""))
+	}
+	srv.socketMode = os.FileMode(mode)
+	if srv.header, err = sec.bool("header", true); err != nil {
+		return nil, err
+	}
+	if srv.headerTimeout, err = sec.duration("header_timeout", 10*time.Second); err != nil {
+		return nil, err
+	}
+	if srv.trustUser, err = sec.bool("trust_user", false); err != nil {
+		return nil, err
+	}
+	if srv.trustUser && !srv.header {
+		return nil, fmt.Errorf("[server] trust_user needs header = yes")
+	}
+	if srv.maxSessions, err = sec.int("max_sessions", 32); err != nil {
+		return nil, err
+	}
+	if srv.maxSessions < 1 {
+		return nil, fmt.Errorf("[server] max_sessions: %d", srv.maxSessions)
+	}
+	if !strings.HasPrefix(srv.listen, "/") && !strings.HasPrefix(srv.listen, "tcp:") {
+		return nil, fmt.Errorf("[server] listen: %q (an absolute path, or tcp:host:port)", srv.listen)
+	}
+	return srv, nil
 }

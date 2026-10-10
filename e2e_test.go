@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -11,42 +12,26 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
-// openPty: master and slave of a new pty, raw as app_dmodem makes it
-func openPty(t *testing.T) (*os.File, *os.File) {
-	m, err := os.OpenFile("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY, 0)
+// testPty: master and slave of a new pty, raw as app_dmodem makes it
+func testPty(t *testing.T) (*os.File, *os.File) {
+	m, s, err := openPty()
 	if err != nil {
 		t.Skip("no pty:", err)
 	}
-	if err := unix.IoctlSetPointerInt(int(m.Fd()), unix.TIOCSPTLCK, 0); err != nil {
-		t.Fatal(err)
-	}
-	n, err := unix.IoctlGetInt(int(m.Fd()), unix.TIOCGPTN)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := os.OpenFile(fmt.Sprintf("/dev/pts/%d", n), os.O_RDWR|syscall.O_NOCTTY, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tio, _ := unix.IoctlGetTermios(int(s.Fd()), unix.TCGETS)
-	makeRaw(tio)
-	unix.IoctlSetTermios(int(s.Fd()), unix.TCSETS, tio)
 	return m, s
 }
 
 // caller: the remote end of the line
 type caller struct {
 	t   *testing.T
-	m   *os.File
+	m   io.ReadWriter
 	in  chan []byte
 	buf bytes.Buffer
 }
 
-func newCaller(t *testing.T, m *os.File) *caller {
+func newCaller(t *testing.T, m io.ReadWriter) *caller {
 	c := &caller{t: t, m: m, in: make(chan []byte, 64)}
 	go func() {
 		for {
@@ -170,7 +155,7 @@ tty = sane
 command = env > %s; cat "$MODEM_SESSION_FILE" >> %s; echo args: {user} {baud} {dialed}; read x; echo "read $x"
 `, filepath.Join(dir, "log"), filepath.Join(dir, "motd"), users, ln.Addr().(*net.TCPAddr).Port, envOut, envOut)), 0o600)
 
-	m, s := openPty(t)
+	m, s := testPty(t)
 	defer m.Close()
 	cmd := exec.Command(bin, "-config", conf)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s, s, s
@@ -271,7 +256,7 @@ func TestHangup(t *testing.T) {
 	conf := filepath.Join(dir, "modemmenu.conf")
 	os.WriteFile(conf, []byte("[general]\nlog = none\n[file]\npath = "+users+
 		"\n[item ppp]\ncommand = exec true\n"), 0o600)
-	m, s := openPty(t)
+	m, s := testPty(t)
 	cmd := exec.Command(bin, "-config", conf)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s, s, s
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}

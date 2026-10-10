@@ -150,15 +150,26 @@ func running(p *os.Process) {
 	childMu.Unlock()
 }
 
-// runTCP: the caller's line to a server: raw TCP, telnet or rlogin
+// runTCP: the caller's line to a server, by TCP or a unix socket: raw,
+// telnet or rlogin
 func runTCP(t *term, it *menuItem, s *session) error {
 	v := s.vars(it.password)
-	addr := net.JoinHostPort(it.host, strconv.Itoa(it.port))
-	conn, err := net.DialTimeout("tcp", addr, it.timeout)
+	network, addr := "tcp", net.JoinHostPort(it.host, strconv.Itoa(it.port))
+	if it.path != "" {
+		network, addr = "unix", it.path
+	}
+	conn, err := net.DialTimeout(network, addr, it.timeout)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+	if it.header {
+		// the session ahead of the protocol: for a modemmenu -serve, or
+		// any program that reads it
+		if err := writeHeader(conn, s, it.password); err != nil {
+			return err
+		}
+	}
 
 	var tn *telnet
 	switch it.mode {

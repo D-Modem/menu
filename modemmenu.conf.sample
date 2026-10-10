@@ -7,6 +7,13 @@
 ;   mode = exec
 ;   command = exec /usr/local/bin/modemmenu -config /etc/asterisk/modemmenu.conf
 ;
+; or one modemmenu -serve serves every call on a unix socket ([server]):
+;
+;   [menu]
+;   mode = unix
+;   path = /run/modemmenu/modemmenu.sock
+;   header = yes
+;
 ; Values may be "quoted" to keep spaces at their ends; \r \n \t \e and \xHH
 ; are those bytes in the texts of [general] and [menu] and in send.
 ;
@@ -121,6 +128,26 @@ hash = auto
 ;dsn = /var/lib/asterisk/users.db
 ;query = SELECT password FROM users WHERE username = ?
 
+; modemmenu -serve: one modemmenu for all calls, on a unix socket (or
+; tcp:host:port).  Each connection gets a session of its own on a new pty,
+; as app_dmodem's mode = exec would give it
+[server]
+listen = /run/modemmenu/modemmenu.sock
+; the socket's permissions: who may connect (app_dmodem: Asterisk's group)
+socket_mode = 0660
+;socket_group = asterisk
+; the call's details come first on each connection, NAME=value lines and an
+; empty line: app_dmodem's header = yes (DMODEM_*), or a menu item's
+; header = yes (MODEM_*).  no: the caller's bytes from the start
+header = yes
+header_timeout = 10
+; yes: a header with MODEM_USER (another modemmenu's item, header = yes)
+; logs the caller in without asking again.  Only for a socket that nothing
+; but trusted menus can connect to
+trust_user = no
+; connections at once; more are told the lines are busy
+max_sessions = 32
+
 [menu]
 title = "\r\nMain menu\r\n"
 prompt = "\r\nSelection: "
@@ -140,6 +167,9 @@ hotkeys = no
 ;   label = ...          its line in the menu
 ;   mode = exec          a program on the line: command (by /bin/sh -c)
 ;          tcp           a TCP server, raw: host, port; send is sent first
+;          unix          a server on a unix socket, raw: path; send too
+;                        (tcp, telnet and rlogin take a path as well, for
+;                        their protocol on a unix socket)
 ;          telnet        a telnet server: host, port (23), terminal (ANSI)
 ;          rlogin        an rlogin server: host, port (513), and
 ;                        rlogin_client_user ({password}), rlogin_server_user
@@ -152,6 +182,10 @@ hotkeys = no
 ;                        in MODEM_SESSION_FILE (removed after)
 ;   after = hangup       when the item ends: hang up, or back to the menu
 ;   connect_timeout = 10 seconds to reach a server
+;   header = no          tcp, unix, telnet, rlogin: yes sends the session
+;                        first, MODEM_* NAME=value lines and an empty line
+;                        (the password only with pass_password), for
+;                        modemmenu -serve or any program that reads it
 
 ; A BBS by rlogin: Synchronet and Mystic log the caller in with the user
 ; name as the server user and the password as the client user
@@ -189,3 +223,13 @@ tty = sane
 pass_password = no
 command = exec "$SHELL" -l
 after = menu
+
+; another menu: a modemmenu -serve with trust_user, which takes the caller
+; as logged in here
+;[item more]
+;key = M
+;label = More services
+;mode = unix
+;path = /run/modemmenu/more.sock
+;header = yes
+;after = menu
