@@ -1,0 +1,166 @@
+;
+; modemmenu.conf - the login and menu of a dial-up line
+;
+; app_dmodem runs it on the caller's line (dmodem.conf):
+;
+;   [menu]
+;   mode = exec
+;   command = exec /usr/local/bin/modemmenu -config /etc/asterisk/modemmenu.conf
+;
+; Values may be "quoted" to keep spaces at their ends; \r \n \t \e and \xHH
+; are those bytes in the texts of [general] and [menu] and in send.
+;
+; The selection gets the session as {placeholders} in its command, send,
+; run_as and the rlogin fields, and as MODEM_* in its environment.  In a
+; command a placeholder is a quoted shell word already: write {user}, not
+; "{user}" (or "$MODEM_USER" from the environment).
+;
+;   {user}       MODEM_USER        the user name the caller logged in with
+;   {password}   MODEM_PASSWORD    their password (pass_password = no: empty
+;                                  and not in the environment)
+;   {auth}       MODEM_AUTH        the backend that accepted it: file, ldap, sql
+;   {dialed}     MODEM_DIALED      the number the caller dialed
+;   {callerid}   MODEM_CALLERID    the caller's number
+;   {baud}       MODEM_BAUD        the connect rate towards the caller, bit/s
+;   {rate}       MODEM_RATE        both rates, tx/rx bit/s (app_dmodem's)
+;   {tx_rate}    MODEM_TX_RATE     to the caller
+;   {rx_rate}    MODEM_RX_RATE     from the caller
+;   {date}       MODEM_DATE        the date of the connection, 2006-01-02
+;   {time}       MODEM_TIME        its time, 15:04:05 (local)
+;   {datetime}   MODEM_DATETIME    both, RFC 3339 with the zone
+;   {epoch}      MODEM_EPOCH       seconds since 1970
+;   {channel}    MODEM_CHANNEL     the Asterisk channel
+;   {profile}    MODEM_PROFILE     the dmodem.conf profile
+;   {selection}  MODEM_SELECTION   the [item ...] chosen
+;
+; The rate, dialed number and caller ID come from app_dmodem's DMODEM_RATE,
+; DMODEM_DIALED and DMODEM_CALLERID, or -rate, -dialed and -callerid.
+
+[general]
+; syslog (auth facility), a file, or none.  Never the line: stderr is the
+; caller's screen
+log = syslog
+; the backends, asked in this order: file, ldap, sql.  A backend that does
+; not know the user passes to the next; a wrong password stops there
+auth = file
+banner = "\r\nWelcome to D-Modem.\r\n"
+;banner_file = /etc/asterisk/modemmenu.banner
+login_prompt = "\r\nlogin: "
+password_prompt = "Password: "
+welcome = "\r\nHello {user}, connected at {baud} bit/s on {date} {time}.\r\n"
+goodbye = "\r\nGoodbye.\r\n"
+; the echo of each password character, or none
+password_echo = *
+; logins before the call is hung up, seconds after a wrong one
+attempts = 3
+fail_delay = 3
+; seconds to log in, to choose in the menu
+login_timeout = 90
+idle_timeout = 300
+; user names taken (others are refused without asking a backend)
+user_pattern = ^[A-Za-z0-9][A-Za-z0-9._@-]{0,63}$
+
+; users in a text file: user:hash, # comments.  hash: bcrypt ($2b$...,
+; modemmenu -hash makes one), {SHA256}hex, {SHA512}hex, {SSHA256}base64,
+; {SSHA512}base64 or {PLAIN}text (hash = plain: the rest of the line, as is)
+[file]
+path = /etc/asterisk/modemmenu.users
+hash = auto
+
+; LDAP: a bind as the user.  Either bind_dn with {user} in it, or a search
+; for the user's entry (search_base, search_filter) as search_bind_dn, then
+; a bind as the entry found.  Restrict who may log in in the filter, e.g.
+; (&(uid={user})(memberOf=cn=dialup,ou=groups,dc=example,dc=com))
+[ldap]
+url = ldaps://ldap.example.com
+;url = ldap://ldap.example.com:389
+;starttls = yes
+;ca_file = /etc/ssl/certs/example-ca.pem
+;insecure_skip_verify = no
+timeout = 10
+;bind_dn = uid={user},ou=people,dc=example,dc=com
+search_base = ou=people,dc=example,dc=com
+search_filter = (&(objectClass=posixAccount)(uid={user}))
+;search_bind_dn = cn=modem,ou=services,dc=example,dc=com
+;search_bind_password = secret
+
+; SQL: query gets args (user, password, in that order of placeholders) and
+; returns one column: the stored password, checked as hash says (auto: by
+; its prefix as in [file]; or bcrypt, sha256, sha512, plain).  hash = none:
+; any row means the login is right (the query checks the password itself)
+[sql]
+; mysql (or mariadb), postgres, sqlite
+driver = mysql
+dsn = modem:secret@tcp(127.0.0.1:3306)/bbs
+query = SELECT password FROM users WHERE username = ? AND enabled = 1
+args = user
+hash = auto
+;driver = postgres
+;dsn = postgres://modem:secret@127.0.0.1/bbs?sslmode=disable
+;query = SELECT 1 FROM users WHERE username = $1 AND password = crypt($2, password)
+;args = user password
+;hash = none
+;driver = sqlite
+;dsn = /var/lib/asterisk/users.db
+;query = SELECT password FROM users WHERE username = ?
+
+[menu]
+title = "\r\nMain menu\r\n"
+prompt = "\r\nSelection: "
+; the items in order (default: every [item ...] in file order)
+items = bbs ppp shell
+hangup_key = G
+
+; An item:
+;   key = B              its key in the menu (default: its name's first letter)
+;   label = ...          its line in the menu
+;   mode = exec          a program on the line: command (by /bin/sh -c)
+;          tcp           a TCP server, raw: host, port; send is sent first
+;          telnet        a telnet server: host, port (23), terminal (ANSI)
+;          rlogin        an rlogin server: host, port (513), and
+;                        rlogin_client_user ({password}), rlogin_server_user
+;                        ({user}), rlogin_terminal (ansi/{baud})
+;   run_as = {user}      exec as this system user (modemmenu must be root)
+;   tty = raw            the line as app_dmodem has it; sane: cooked, echo,
+;                        CR to LF, for programs that want a terminal
+;   pass_password = yes  the password in {password} and MODEM_PASSWORD
+;   session_file = no    yes: the session as JSON in a 0600 file, its path
+;                        in MODEM_SESSION_FILE (removed after)
+;   after = hangup       when the item ends: hang up, or back to the menu
+;   connect_timeout = 10 seconds to reach a server
+
+; A BBS by rlogin: Synchronet and Mystic log the caller in with the user
+; name as the server user and the password as the client user
+[item bbs]
+key = B
+label = Bulletin board
+mode = rlogin
+host = 127.0.0.1
+port = 513
+rlogin_client_user = {password}
+rlogin_server_user = {user}
+rlogin_terminal = ansi/{baud}
+after = menu
+; or a BBS that reads its login from the line:
+;mode = tcp
+;port = 2323
+;send = "{user}\r{password}\r"
+
+; PPP: pppd on the line.  The caller is logged in already: noauth, and
+; ipparam hands the user to /etc/ppp/ip-up (as $6), which also sees MODEM_*
+[item ppp]
+key = P
+label = PPP (dial-up networking)
+mode = exec
+command = exec /usr/sbin/pppd nodetach noauth local lock passive 192.168.77.1:192.168.77.2 ms-dns 192.168.77.1 ipparam {user}
+
+; a shell of the caller's account (modemmenu runs as root for run_as)
+[item shell]
+key = S
+label = Shell
+mode = exec
+run_as = {user}
+tty = sane
+pass_password = no
+command = exec "$SHELL" -l
+after = menu

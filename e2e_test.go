@@ -1,0 +1,281 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+
+	"golang.org/x/sys/unix"
+)
+
+// openPty: master and slave of a new pty, raw as app_dmodem makes it
+func openPty(t *testing.T) (*os.File, *os.File) {
+	m, err := os.OpenFile("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY, 0)
+	if err != nil {
+		t.Skip("no pty:", err)
+	}
+	if err := unix.IoctlSetPointerInt(int(m.Fd()), unix.TIOCSPTLCK, 0); err != nil {
+		t.Fatal(err)
+	}
+	n, err := unix.IoctlGetInt(int(m.Fd()), unix.TIOCGPTN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := os.OpenFile(fmt.Sprintf("/dev/pts/%d", n), os.O_RDWR|syscall.O_NOCTTY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tio, _ := unix.IoctlGetTermios(int(s.Fd()), unix.TCGETS)
+	makeRaw(tio)
+	unix.IoctlSetTermios(int(s.Fd()), unix.TCSETS, tio)
+	return m, s
+}
+
+// caller: the remote end of the line
+type caller struct {
+	t   *testing.T
+	m   *os.File
+	in  chan []byte
+	buf bytes.Buffer
+}
+
+func newCaller(t *testing.T, m *os.File) *caller {
+	c := &caller{t: t, m: m, in: make(chan []byte, 64)}
+	go func() {
+		for {
+			b := make([]byte, 1024)
+			n, err := m.Read(b)
+			if n > 0 {
+				c.in <- b[:n]
+			}
+			if err != nil {
+				close(c.in)
+				return
+			}
+		}
+	}()
+	return c
+}
+
+func (c *caller) expect(s string) string {
+	c.t.Helper()
+	timeout := time.After(10 * time.Second)
+	for !strings.Contains(c.buf.String(), s) {
+		select {
+		case b, ok := <-c.in:
+			if !ok {
+				c.t.Fatalf("waiting for %q: hung up; got %q", s, c.buf.String())
+			}
+			c.buf.Write(b)
+		case <-timeout:
+			c.t.Fatalf("waiting for %q: timeout; got %q", s, c.buf.String())
+		}
+	}
+	i := strings.Index(c.buf.String(), s) + len(s)
+	got := c.buf.String()[:i]
+	rest := c.buf.String()[i:]
+	c.buf.Reset()
+	c.buf.WriteString(rest)
+	return got
+}
+
+func (c *caller) send(s string) {
+	c.m.Write([]byte(s))
+}
+
+func TestLine(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "modemmenu")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+
+	// an rlogin BBS: checks the handshake, says who logged in, ends on Q
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	hello := make(chan string, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		b := make([]byte, 256)
+		got := ""
+		for strings.Count(got, "\x00") < 4 {
+			n, err := conn.Read(b)
+			if err != nil {
+				return
+			}
+			got += string(b[:n])
+		}
+		hello <- got
+		parts := strings.Split(got, "\x00")
+		conn.Write([]byte("\x00Welcome to the BBS, " + parts[2] + "\r\n"))
+		for {
+			n, err := conn.Read(b)
+			if err != nil || bytes.ContainsRune(b[:n], 'Q') {
+				conn.Write([]byte("Bye from the BBS\r\n"))
+				return
+			}
+		}
+	}()
+
+	users := filepath.Join(dir, "users")
+	os.WriteFile(users, []byte("alice:{PLAIN}secret\n"), 0o600)
+	envOut := filepath.Join(dir, "env")
+	conf := filepath.Join(dir, "modemmenu.conf")
+	os.WriteFile(conf, []byte(fmt.Sprintf(`
+[general]
+log = %s
+auth = file
+fail_delay = 0
+banner = "Test line\r\n"
+[file]
+path = %s
+[item bbs]
+key = B
+label = BBS
+mode = rlogin
+host = 127.0.0.1
+port = %d
+after = menu
+[item shell]
+key = S
+label = Shell
+mode = exec
+tty = sane
+after = menu
+command = PS1='sh> ' exec sh -i
+[item info]
+key = I
+label = Info
+mode = exec
+session_file = yes
+tty = sane
+command = env > %s; cat "$MODEM_SESSION_FILE" >> %s; echo args: {user} {baud} {dialed}; read x; echo "read $x"
+`, filepath.Join(dir, "log"), users, ln.Addr().(*net.TCPAddr).Port, envOut, envOut)), 0o600)
+
+	m, s := openPty(t)
+	defer m.Close()
+	cmd := exec.Command(bin, "-config", conf)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = s, s, s
+	cmd.Env = append(os.Environ(), "DMODEM_RATE=33600/31200", "DMODEM_CALLERID=5559999",
+		"DMODEM_DIALED=5551000", "DMODEM_CHANNEL=Local/s@test", "TMPDIR="+dir)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	defer cmd.Process.Kill()
+
+	c := newCaller(t, m)
+	c.expect("Test line")
+	c.expect("login: ")
+	c.send("alice\r")
+	c.expect("alice\r\nPassword: ")
+	c.send("wrong\r")
+	c.expect("*****\r\n")
+	c.expect("Login incorrect")
+	c.expect("login: ")
+	c.send("alice\r\n")
+	c.expect("Password: ")
+	c.send("secret\r")
+	c.expect("Welcome, alice.")
+	c.expect("Selection: ")
+
+	c.send("b\r")
+	c.expect("Welcome to the BBS, alice")
+	if h := <-hello; h != "\x00secret\x00alice\x00ansi/33600\x00" {
+		t.Errorf("rlogin handshake %q", h)
+	}
+	c.send("Q")
+	c.expect("Bye from the BBS")
+	c.expect("Selection: ")
+
+	// a cooked shell: ^C stops its command, not the session
+	c.send("S")
+	c.expect("sh> ")
+	c.send("sleep 30\r")
+	c.expect("sleep 30")
+	time.Sleep(300 * time.Millisecond)
+	c.send("\x03")
+	c.expect("sh> ")
+	c.send("echo alive $MODEM_USER\r")
+	c.expect("alive alice")
+	c.send("exit\r")
+	c.expect("Selection: ")
+
+	c.send("I")
+	c.expect("args: alice 33600 5551000")
+	c.send("typed\r")
+	c.expect("read typed")
+	c.expect("Goodbye")
+	cmd.Wait()
+
+	env, _ := os.ReadFile(envOut)
+	for _, w := range []string{"MODEM_USER=alice", "MODEM_PASSWORD=secret", "MODEM_BAUD=33600",
+		"MODEM_DIALED=5551000", "MODEM_CALLERID=5559999", "MODEM_SELECTION=info",
+		"MODEM_AUTH=file", "MODEM_CHANNEL=Local/s@test", "MODEM_DATETIME=", `"user": "alice"`,
+		`"password": "secret"`, `"dialed": "5551000"`} {
+		if !bytes.Contains(env, []byte(w)) {
+			t.Errorf("no %s in the environment and session file:\n%s", w, env)
+		}
+	}
+	if matches, _ := filepath.Glob(filepath.Join(dir, "modemmenu-*.json")); len(matches) > 0 {
+		t.Errorf("session files left: %v", matches)
+	}
+	log, _ := os.ReadFile(filepath.Join(dir, "log"))
+	for _, w := range []string{`failed login user="alice"`, "login user=alice auth=file", "start bbs", "end info"} {
+		if !bytes.Contains(log, []byte(w)) {
+			t.Errorf("no %q in the log:\n%s", w, log)
+		}
+	}
+	if bytes.Contains(log, []byte("secret")) {
+		t.Errorf("the password in the log:\n%s", log)
+	}
+}
+
+// the caller hanging up at the login ends modemmenu
+func TestHangup(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "modemmenu")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+	users := filepath.Join(dir, "users")
+	os.WriteFile(users, nil, 0o600)
+	conf := filepath.Join(dir, "modemmenu.conf")
+	os.WriteFile(conf, []byte("[general]\nlog = none\n[file]\npath = "+users+
+		"\n[item ppp]\ncommand = exec true\n"), 0o600)
+	m, s := openPty(t)
+	cmd := exec.Command(bin, "-config", conf)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = s, s, s
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	c := newCaller(t, m)
+	c.expect("login: ")
+	c.send("ali")
+	m.Close()
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		cmd.Process.Kill()
+		t.Fatal("modemmenu is still running after the hangup")
+	}
+}

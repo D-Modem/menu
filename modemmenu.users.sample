@@ -1,0 +1,6 @@
+# modemmenu.users - user:password, one per line (mode 0600)
+#
+#   modemmenu -hash          prints the bcrypt hash of a password
+#
+# guest:{PLAIN}guest
+# alice:$2a$10$...
