@@ -1,11 +1,16 @@
 module github.com/Neo-Desktop/pbx-modem
 
-go 1.22
+go 1.22.4
+
+toolchain go1.24.7
 
 require (
+	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5
 	github.com/go-ldap/ldap/v3 v3.4.8
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/lib/pq v1.10.9
+	github.com/msteinert/pam/v2 v2.1.0
+	github.com/openwall/yescrypt-go v1.0.0
 	golang.org/x/crypto v0.31.0
 	golang.org/x/sys v0.28.0
 	golang.org/x/term v0.27.0

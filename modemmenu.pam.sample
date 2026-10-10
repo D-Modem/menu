@@ -1,0 +1,6 @@
+# /etc/pam.d/modemmenu - the PAM service of modemmenu's [system] method = pam
+#
+# pam_unix checks another user's password only for root: run modemmenu
+# (Asterisk) as root for it, or use method = shadow with the shadow group.
+@include common-auth
+@include common-account

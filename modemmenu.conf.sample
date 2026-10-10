@@ -40,7 +40,7 @@
 ; syslog (auth facility), a file, or none.  Never the line: stderr is the
 ; caller's screen
 log = syslog
-; the backends, asked in this order: file, ldap, sql.  A backend that does
+; the backends, asked in this order: file, ldap, sql, system.  A backend that does
 ; not know the user passes to the next; a wrong password stops there
 auth = file
 banner = "\r\nWelcome to D-Modem.\r\n"
@@ -83,6 +83,28 @@ search_base = ou=people,dc=example,dc=com
 search_filter = (&(objectClass=posixAccount)(uid={user}))
 ;search_bind_dn = cn=modem,ou=services,dc=example,dc=com
 ;search_bind_password = secret
+
+; system: the accounts of this machine.
+;   method = shadow   their passwords in /etc/shadow (yescrypt, SHA-512,
+;                     SHA-256, MD5 or bcrypt crypt hashes); locked (!, *),
+;                     expired accounts and passwords are refused.  modemmenu
+;                     must read /etc/shadow: root, or the shadow group
+;   method = pam      the PAM service pam_service (modemmenu.pam.sample as
+;                     /etc/pam.d/modemmenu): any PAM stack, sssd, Kerberos...
+;                     Needs a build with PAM (make finds libpam's headers),
+;                     and root for pam_unix
+; Accounts with a uid below min_uid are not let in, nor root unless
+; allow_root; with groups, only members (by membership or primary group)
+[system]
+method = shadow
+;method = pam
+;pam_service = modemmenu
+min_uid = 1000
+allow_root = no
+;groups = dialup
+;passwd_file = /etc/passwd
+;shadow_file = /etc/shadow
+;group_file = /etc/group
 
 ; SQL: query gets args (user, password, in that order of placeholders) and
 ; returns one column: the stored password, checked as hash says (auto: by

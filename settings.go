@@ -111,8 +111,10 @@ func loadSettings(path string) (*settings, error) {
 			a, err = newLDAPAuth(c.section("ldap"))
 		case "sql":
 			a, err = newSQLAuth(c.section("sql"))
+		case "system":
+			a, err = newSystemAuth(c.section("system"))
 		default:
-			err = fmt.Errorf("[general] auth: unknown backend %q (file, ldap, sql)", name)
+			err = fmt.Errorf("[general] auth: unknown backend %q (file, ldap, sql, system)", name)
 		}
 		if err != nil {
 			return nil, err

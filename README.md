@@ -2,7 +2,8 @@
 
 `modemmenu` is the first thing a caller sees once the modems are
 connected.  It asks for a user name and password, checks them against a
-text file, LDAP or an SQL database (MySQL/MariaDB, PostgreSQL, SQLite),
+text file, LDAP, an SQL database (MySQL/MariaDB, PostgreSQL, SQLite) or
+the system's own accounts (/etc/shadow or PAM),
 and then offers a menu:
 
 ```
@@ -56,14 +57,19 @@ caller types itself.  Its exit, like the selection's, hangs up the call.
 
 ## Building
 
-Go 1.22 or later:
+Go 1.22.4 or later:
 
 ```
-make                    # or: go build
+make                    # or: go build (-tags pam for PAM)
+make PAM=0              # without PAM, when libpam's headers are there
 make test
 make install            # /usr/local/bin/modemmenu, and the samples into
-                        # /etc/asterisk if there are none
+                        # /etc/asterisk (and /etc/pam.d) if there are none
 ```
+
+`make` builds with PAM when libpam's headers are installed
+(`libpam0g-dev` on Debian and Ubuntu, `pam-devel` on Fedora); without
+them modemmenu builds with the other backends and `method = shadow`.
 
 ## Configuration
 
@@ -72,7 +78,7 @@ short:
 
 ```
 [general]
-auth = file ldap sql    ; the backends, asked in this order
+auth = file ldap sql system   ; the backends, asked in this order
 
 [file]
 path = /etc/asterisk/modemmenu.users
@@ -120,6 +126,17 @@ backend that is down (LDAP unreachable, SQL error) is logged and skipped.
   `hash = none` any row means the login is right, for a database that
   checks passwords itself (`crypt()` in PostgreSQL).
 
+- **system**: the machine's own accounts.  `method = shadow` checks the
+  password against `/etc/shadow` (yescrypt, SHA-512, SHA-256, MD5 and
+  bcrypt crypt hashes) and refuses locked accounts and expired accounts
+  or passwords; `method = pam` runs the PAM service `pam_service`
+  (`modemmenu.pam.sample` for `/etc/pam.d/modemmenu`), its auth and
+  account stacks, so anything PAM knows (sssd, Kerberos, OTP modules)
+  works.  Either way accounts below `min_uid` (1000) and root (unless
+  `allow_root = yes`) are not let in, and `groups = dialup` lets in only
+  that group's members.  With `run_as = {user}` the shell selection then
+  runs as the caller's own account.
+
 User names must match `user_pattern` (letters, digits, `._@-` by default);
 wrong logins wait `fail_delay` seconds, unknown users take as long as
 known ones, and the call is hung up after `attempts` tries or
@@ -162,6 +179,9 @@ hangup` (the default) hangs up.
 
 ## Security notes
 
+- `method = shadow` must read `/etc/shadow`: run Asterisk as root or add
+  its user to the `shadow` group.  PAM's `pam_unix` checks other users'
+  passwords only for root.
 - Asterisk usually runs as its own user: the users file (and
   modemmenu.conf, which may hold database and LDAP passwords) must be
   readable by it, and by no one else.  `run_as` needs modemmenu to run as
@@ -183,6 +203,10 @@ hangup` (the default) hangs up.
 and the telnet client, and runs modemmenu on a pty as app_dmodem does: a
 wrong and a right login, an rlogin BBS and back to the menu, and an exec
 selection's environment and session file.
+`/etc/shadow` handling is tested with files of its own (each hash
+scheme, locked and expired accounts, uids and groups).
+`MODEMMENU_TEST_PAM=user:password make test` (as root, with
+`/etc/pam.d/modemmenu`) also tests the PAM method;
 `MODEMMENU_TEST_LDAP=ldap://host:port` also tests the LDAP backend
 against a server with `uid=lduser,ou=people,dc=example,dc=com`
 (password `ldpass`).

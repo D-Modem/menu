@@ -121,6 +121,10 @@ func authenticate(ctx context.Context, backends []authenticator, user, password 
 		case errors.Is(err, errBadPassword):
 			return "", err
 		case errors.Is(err, errNoUser):
+			if err != errNoUser {
+				// known, but not one this backend lets in: why
+				logf("auth %s: %v", a.name(), err)
+			}
 			continue
 		default:
 			// a backend that is down does not stop the others
