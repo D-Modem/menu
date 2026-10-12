@@ -9,8 +9,8 @@ import (
 )
 
 // fileAuth: a text file of user:password lines (the password hashed as
-// checkPassword reads it; # comments), read at each login so that edits
-// take effect at once
+// checkPassword reads it, ! before it for a locked account; # comments),
+// read at each login so that edits take effect at once
 type fileAuth struct {
 	path   string
 	scheme string
@@ -44,6 +44,11 @@ func (a *fileAuth) authenticate(_ context.Context, user, password string) error 
 		name, stored, ok := strings.Cut(line, ":")
 		if !ok || name != user {
 			continue
+		}
+		// a locked account (signup's pending ones): !hash
+		if strings.HasPrefix(stored, "!") {
+			burn(password)
+			return fmt.Errorf("%w: %s is locked", errBadPassword, user)
 		}
 		// user:hash[:anything else, e.g. a full name]
 		if a.scheme != "plain" && !strings.HasPrefix(stored, "{") {

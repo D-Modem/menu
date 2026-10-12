@@ -25,6 +25,7 @@ type session struct {
 	Profile   string    `json:"profile"`
 	Connected time.Time `json:"connected"`
 	Selection string    `json:"selection"`
+	TimeLeft  string    `json:"time_left"` // whole minutes; "": no limit
 }
 
 // newSession from app_dmodem's environment (DMODEM_RATE "tx/rx",
@@ -65,6 +66,7 @@ func (s *session) vars(withPassword bool) map[string]string {
 		"channel":   s.Channel,
 		"profile":   s.Profile,
 		"selection": s.Selection,
+		"time_left": s.TimeLeft,
 		"date":      s.Connected.Format("2006-01-02"),
 		"time":      s.Connected.Format("15:04:05"),
 		"datetime":  s.Connected.Format(time.RFC3339),

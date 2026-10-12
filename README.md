@@ -141,6 +141,14 @@ short:
 auth = file system
 ; the message of the day, before the menu
 motd_file = /etc/motd
+time_limit = 60m        ; a call
+daily_limit = 2h        ; a user's calls in a day
+
+[groups]
+sysops = alice
+
+[guest]
+enabled = yes           ; "guest" at the login prompt, no password
 
 [file]
 path = /etc/asterisk/modemmenu.users
@@ -151,6 +159,7 @@ groups = dialup
 
 [menu]
 hangup = G goodbye bye logoff
+prompt = "\r\nSelection ({time_left} min left): "
 
 [item bbs]
 key = B
@@ -164,12 +173,14 @@ after = menu
 key = P
 aliases = dialup
 label = PPP (dial-up networking)
+min_baud = 9600
 mode = exec
 command = exec /usr/sbin/pppd nodetach noauth local lock passive 192.168.77.1:192.168.77.2 ipparam {user}
 
 [item shell]
 key = S
 label = Shell
+groups = sysops
 mode = exec
 run_as = {user}
 tty = sane
@@ -177,8 +188,10 @@ pass_password = no
 command = exec "$SHELL" -l
 ```
 
-Comments (`;` or `#`) go on lines of their own.  `modemmenu -check
--config FILE` checks a configuration.
+Comments start with `;` or `#`, on a line of their own or after a value
+(following a space or tab, outside `"quotes"`); `\;` and `\#` are the
+characters themselves.  `modemmenu -check -config FILE` checks a
+configuration.
 
 ### Authentication
 
@@ -259,13 +272,80 @@ menu shows the key, its labels lined up.
 - `[menu] title`, `prompt` and `items` (the order) set the rest; see
   the sample.
 
+### Who sees what
+
+An item's rules decide who sees it; a caller who may not use an item
+neither sees it in the menu nor can choose it (it is an unknown
+selection to them).  All the rules that are set must pass:
+
+| item option | |
+|---|---|
+| `users = alice bob` | these users ... |
+| `groups = sysops` | ... or the members of these groups: `[groups]` (`sysops = alice bob`), or the system's groups for a login by `auth = system` |
+| `min_baud = 9600` | the connect rate towards the caller at least this; an unknown rate does not pass |
+| `callerids = 555*` | the caller ID matching one of these patterns |
+| `guest = yes` | guests see it too (they see nothing else) |
+
+An item without `users` or `groups` is for every logged-in caller.
+
+### Guests and new accounts
+
+With `[guest] enabled = yes`, its `name` (`guest`) at the login prompt
+logs in without a password.  A guest sees only the items with `guest =
+yes`, for `[guest] time_limit` (15 minutes) at most; `MODEM_AUTH` is
+`guest`.  The guest name wins over an account of the same name.
+
+With `[signup] enabled = yes`, its `name` (`new`) at the login prompt
+starts a new account: a user name (one that `user_pattern` takes and no
+users-file or system account has), and a password of `min_password`
+characters, twice.  The account goes at the end of the users file
+(`[signup] file`, the `[file]` backend's by default; `auth` must have
+`file`) as `user:bcrypt:signup DATE CALLERID`.  With `pending = yes` (the
+default) it is locked, `user:!bcrypt`, and the caller is told it waits
+for the sysop, who removes the `!` to unlock it; with `pending = no` the
+caller is logged in at once.
+
+### Caller ID
+
+`[callerid]` decides which calls the line takes, before the banner:
+`allow` (only these numbers), `deny` (not these) and `anonymous = no`
+(not calls without a caller ID).  Numbers are patterns, `*` and `?` as
+in file names.  A refused caller hears `deny_message` and the call ends.
+
+`[number PATTERN]` sections, the first that matches, treat one number
+or a few specially:
+
+```
+[number 5551234]
+user = alice    ; logged in as alice without a password
+item = ppp      ; and PPP starts at once
+
+[number 1900*]
+deny = yes
+```
+
+`user` trusts the caller ID: only use it where the network vouches for
+the number (your own trunk, not a SIP peer anyone can reach).
+
+### Time limits
+
+`[general] time_limit` limits each call, from the login; `daily_limit`
+a user's calls in a day, kept in `state_dir/usage/USER` (made by the
+systemd unit's `StateDirectory`).  Guests have `[guest] time_limit`
+only.  A caller whose day is used up is told so after the login; the
+menu ends when the time is up, and a running selection is hung up (a
+program gets `SIGHUP`, then `SIGKILL` 10 seconds later; a server's
+connection is closed).  `{time_left}` (whole minutes, empty without a
+limit) shows what is left, e.g. in `[menu] prompt`, and the selection
+gets it as `MODEM_TIME_LEFT`.
+
 ### What the selection gets
 
 | placeholder | environment | |
 |---|---|---|
 | `{user}` | `MODEM_USER` | the user name |
 | `{password}` | `MODEM_PASSWORD` | the password (not with `pass_password = no`) |
-| `{auth}` | `MODEM_AUTH` | `file`, `ldap`, `sql` or `system` |
+| `{auth}` | `MODEM_AUTH` | `file`, `ldap`, `sql`, `system`, `guest`, `callerid` (`[number]`'s `user`) or `upstream:...` |
 | `{dialed}` | `MODEM_DIALED` | the number dialed |
 | `{callerid}` | `MODEM_CALLERID` | the caller's number |
 | `{baud}` | `MODEM_BAUD` | the connect rate towards the caller, bit/s |
@@ -274,6 +354,7 @@ menu shows the key, its labels lined up.
 | `{datetime}`, `{epoch}` | `MODEM_DATETIME`, `MODEM_EPOCH` | the same, RFC 3339 and Unix time |
 | `{channel}`, `{profile}` | `MODEM_CHANNEL`, `MODEM_PROFILE` | app_dmodem's channel and profile |
 | `{selection}` | `MODEM_SELECTION` | the item chosen |
+| `{time_left}` | `MODEM_TIME_LEFT` | whole minutes left, empty without a limit |
 
 How it reaches each kind of selection:
 
@@ -343,6 +424,13 @@ asks the caller to log in again.
   if the program reads the file instead.
 - Never put `{password}` in a command line: other users see the
   arguments of every process.  Use `MODEM_PASSWORD` or the session file.
+- Caller ID can be forged on many networks: `[number] user` logs in
+  whoever presents the number.  Use it only for numbers your own network
+  vouches for.
+- Signup's `pending = yes` (the default) keeps new accounts locked until
+  you unlock them; with `pending = no`, anyone who calls gets an account
+  and every item without `users` or `groups`.  Give public items
+  `guest = yes` and keep the rest to groups.
 - A server's socket is only as safe as its permissions: anyone who can
   connect gets a login prompt, and with `trust_user` a login as whoever
   they name.  Keep `socket_mode` and `socket_group` to Asterisk or the
@@ -361,8 +449,11 @@ and back to the menu, a cooked shell, and an exec selection's
 environment and session file.  It also runs `modemmenu -serve` on a unix
 socket: a session from an app_dmodem header (on a pty of its own), a
 caller hanging up, another modemmenu handing a logged-in caller over by
-a `mode = unix` item, and `SIGTERM`.  The system backend's uid, root and
-group rules are tested with PAM replaced.
+a `mode = unix` item, and `SIGTERM`.  Calls test who sees what (users,
+groups, `min_baud`, caller ID), a guest, signups (logged in at once, and
+pending), refused and known numbers, and a selection hung up at the
+day's limit, then the day's next call refused.  The system backend's
+uid, root and group rules are tested with PAM replaced.
 
 Two more tests run when their servers are given:
 

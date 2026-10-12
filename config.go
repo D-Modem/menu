@@ -72,7 +72,7 @@ func (s *section) duration(key string, def time.Duration) (time.Duration, error)
 }
 
 // ini is a dmodem.conf-style file: [sections] of key = value, ';' or '#'
-// comments on lines of their own
+// comments on lines of their own or after a value (following a space)
 type ini struct {
 	path     string
 	sections []*section
@@ -123,7 +123,7 @@ func parseINI(path string) (*ini, error) {
 			return nil, fmt.Errorf("%s:%d: %q is before any [section]", path, n, line)
 		}
 		key := strings.ToLower(strings.TrimSpace(line[:eq]))
-		val := strings.TrimSpace(line[eq+1:])
+		val := strings.TrimSpace(stripComment(line[eq+1:]))
 		if len(val) >= 2 && val[0] == '"' && val[len(val)-1] == '"' {
 			val = val[1 : len(val)-1]
 		}
@@ -134,6 +134,29 @@ func parseINI(path string) (*ini, error) {
 		cur.line[key] = n
 	}
 	return c, sc.Err()
+}
+
+// stripComment: a value without the comment after it: from a ; or # that
+// follows a space or tab, outside "quotes".  \; and \# are the characters
+// themselves.
+func stripComment(v string) string {
+	var b strings.Builder
+	quoted := false
+	for i := 0; i < len(v); i++ {
+		c := v[i]
+		switch {
+		case c == '\\' && i+1 < len(v) && (v[i+1] == ';' || v[i+1] == '#'):
+			i++
+			b.WriteByte(v[i])
+			continue
+		case c == '"':
+			quoted = !quoted
+		case (c == ';' || c == '#') && !quoted && (i == 0 || v[i-1] == ' ' || v[i-1] == '\t'):
+			return b.String()
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
 }
 
 // unescape turns \r \n \t \e \\ and \xHH of a configured string into

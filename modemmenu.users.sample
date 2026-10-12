@@ -2,5 +2,8 @@
 #
 #   modemmenu -hash          prints the bcrypt hash of a password
 #
+# user:!hash is locked (signup's pending accounts): remove the ! to unlock.
+# What follows a second : is a note (signup writes its date and caller ID).
+#
 # guest:{PLAIN}guest
 # alice:$2a$10$...

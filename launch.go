@@ -11,26 +11,28 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
 )
 
-// launch the selection: its error, or nil when it ended by itself
-func launch(t *term, it *menuItem, s *session, logf func(string, ...any)) error {
+// launch the selection: its error, or nil when it ended by itself;
+// errTimeLimit when deadline (if not zero) ended it
+func launch(t *term, it *menuItem, s *session, deadline time.Time, logf func(string, ...any)) error {
 	switch it.mode {
 	case "exec":
-		return runExec(t, it, s, logf)
+		return runExec(t, it, s, deadline, logf)
 	default:
-		return runTCP(t, it, s)
+		return runTCP(t, it, s, deadline)
 	}
 }
 
 // runExec: the command under /bin/sh -c on the caller's line, the
 // session in MODEM_* of its environment, {placeholders} of the command
 // as quoted shell words
-func runExec(t *term, it *menuItem, s *session, logf func(string, ...any)) error {
+func runExec(t *term, it *menuItem, s *session, deadline time.Time, logf func(string, ...any)) error {
 	v := s.vars(it.password)
 	cmd := exec.Command("/bin/sh", "-c", expand(it.command, v, shellQuote))
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stdout
@@ -80,8 +82,22 @@ func runExec(t *term, it *menuItem, s *session, logf func(string, ...any)) error
 		return err
 	}
 	running(cmd.Process)
+	// at the deadline: hung up, as when the caller hangs up, then killed
+	var timedOut atomic.Bool
+	if !deadline.IsZero() {
+		p := cmd.Process
+		timer := time.AfterFunc(time.Until(deadline), func() {
+			timedOut.Store(true)
+			p.Signal(syscall.SIGHUP)
+			time.AfterFunc(10*time.Second, func() { p.Kill() })
+		})
+		defer timer.Stop()
+	}
 	err := cmd.Wait()
 	running(nil)
+	if timedOut.Load() {
+		return errTimeLimit
+	}
 	// the line's foreground is ours again, whatever a shell did with it
 	unix.IoctlSetPointerInt(t.in, unix.TIOCSPGRP, unix.Getpgrp())
 	if ee, ok := err.(*exec.ExitError); ok {
@@ -152,7 +168,7 @@ func running(p *os.Process) {
 
 // runTCP: the caller's line to a server, by TCP or a unix socket: raw,
 // telnet or rlogin
-func runTCP(t *term, it *menuItem, s *session) error {
+func runTCP(t *term, it *menuItem, s *session, deadline time.Time) error {
 	v := s.vars(it.password)
 	network, addr := "tcp", net.JoinHostPort(it.host, strconv.Itoa(it.port))
 	if it.path != "" {
@@ -197,6 +213,14 @@ func runTCP(t *term, it *menuItem, s *session) error {
 		tn = &telnet{conn: conn, term: expand(it.terminal, v, nil),
 			local: map[byte]bool{}, remote: map[byte]bool{}}
 	}
+	// at the deadline the connection's reads and writes fail: the end
+	conn.SetDeadline(deadline)
+	timeUp := func(err error) error {
+		if !deadline.IsZero() && !time.Now().Before(deadline) {
+			return errTimeLimit
+		}
+		return err
+	}
 	if it.send != "" {
 		b := []byte(expand(unescape(it.send), v, nil))
 		if tn != nil {
@@ -236,7 +260,7 @@ func runTCP(t *term, it *menuItem, s *session) error {
 	for {
 		select {
 		case err := <-done:
-			return err
+			return timeUp(err)
 		default:
 		}
 		ok, err := pollOne(t.in, unix.POLLIN, 200*time.Millisecond)
@@ -259,7 +283,7 @@ func runTCP(t *term, it *menuItem, s *session) error {
 		}
 		if _, err := tn.writeTo(conn, b); err != nil {
 			<-done
-			return nil
+			return timeUp(nil)
 		}
 	}
 }

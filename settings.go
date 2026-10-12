@@ -50,6 +50,7 @@ type menuItem struct {
 	sessionFile bool
 	after       string // hangup, menu
 	timeout     time.Duration
+	access      itemAccess
 }
 
 // serverSettings: [server], for modemmenu -serve
@@ -66,6 +67,11 @@ type serverSettings struct {
 type settings struct {
 	general
 	server     *serverSettings
+	groups     map[string][]string // [groups]: name = members
+	guest      guestSettings
+	signup     signupSettings
+	callerID   callerIDSettings
+	limits     limitSettings
 	menuTitle  string
 	menuPrompt string
 	hangup     []string // what hangs up, upper case; the first one shown
@@ -146,6 +152,9 @@ func loadSettings(path string) (*settings, error) {
 	if s.server, err = loadServer(c.section("server")); err != nil {
 		return nil, err
 	}
+	if err := loadAccess(c, s); err != nil {
+		return nil, err
+	}
 
 	m := c.section("menu")
 	s.menuTitle = unescape(m.get("title", `\r\nMain menu\r\n`))
@@ -190,6 +199,9 @@ func loadSettings(path string) (*settings, error) {
 	}
 	if len(s.items) == 0 {
 		return nil, fmt.Errorf("%s: no [item ...] in the menu", path)
+	}
+	if err := checkAccess(s); err != nil {
+		return nil, err
 	}
 	if s.hotkeys {
 		for _, it := range s.items {
@@ -242,6 +254,9 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 		return nil, err
 	}
 	if it.timeout, err = sec.duration("connect_timeout", 10*time.Second); err != nil {
+		return nil, err
+	}
+	if it.access, err = loadItemAccess(name, sec); err != nil {
 		return nil, err
 	}
 	if it.mode == "unix" {

@@ -102,6 +102,7 @@ func handleSignals() {
 			childMu.Unlock()
 			if p == nil {
 				logf("%v: hung up", sig)
+				runAtExit()
 				os.Exit(1)
 			}
 			// the program ends, its session file is removed, then us
@@ -166,25 +167,58 @@ func (s *session) String() string {
 // run the login and the menu: the exit status
 func run(t *term, s *settings, sess *session) int {
 	logf("connect %v", sess)
+	if !s.callerAllowed(sess.CallerID) {
+		logf("refused by caller ID %v", sess)
+		t.write(s.callerID.denyMessage)
+		return 1
+	}
 	if t.write(expand(s.banner, sess.vars(false), nil)) != nil {
 		return 1
 	}
-	if sess.User != "" {
+	rule := s.numberRule(sess.CallerID)
+	switch {
+	case sess.User != "":
 		// an upstream menu logged the caller in
 		logf("login user=%s auth=%s %v", sess.User, sess.Auth, sess)
-	} else if err := login(t, s, sess); err != nil {
-		if !errors.Is(err, errHangup) {
-			t.write("\r\n")
+	case rule != nil && rule.user != "":
+		// the caller's number logs them in: [number ...] user
+		sess.User, sess.Auth = rule.user, "callerid"
+		logf("login user=%s auth=callerid %v", sess.User, sess)
+	default:
+		if err := login(t, s, sess); err != nil {
+			if !errors.Is(err, errHangup) {
+				t.write("\r\n")
+			}
+			logf("no login: %v (%v)", err, sess)
+			return 1
 		}
-		logf("no login: %v (%v)", err, sess)
-		return 1
 	}
+
+	lim, err := newLimiter(s, sess, time.Now())
+	if err != nil {
+		logf("user=%s: no time left today", sess.User)
+		t.write("\r\nYou have used your time for today.  Call again tomorrow.\r\n")
+		return 0
+	}
+	setAtExit(lim.done)
+	defer lim.done()
+	sess.TimeLeft = lim.timeLeft(time.Now())
+
 	t.write(expand(s.welcome, sess.vars(false), nil))
 	t.write(motd(s, sess))
-	err := menu(t, s, sess)
+	var first *menuItem
+	if rule != nil && rule.item != "" {
+		first = s.selects(strings.ToUpper(rule.item))
+		if first != nil && !s.allows(first, sess) {
+			first = nil
+		}
+	}
+	err = menu(t, s, sess, lim, first)
 	switch {
 	case err == nil:
 		t.write(expand(s.goodbye, sess.vars(false), nil))
+	case errors.Is(err, errTimeLimit):
+		t.write("\r\n\r\nYour time is up." + expand(s.goodbye, sess.vars(false), nil))
 	case errors.Is(err, errTimeout):
 		t.write("\r\nIdle too long.\r\n")
 	}
@@ -215,6 +249,15 @@ func login(t *term, s *settings, sess *session) error {
 		if name == "" {
 			try--
 			continue
+		}
+		if s.guest.enabled && strings.EqualFold(name, s.guest.name) {
+			// no password for a guest
+			sess.User, sess.Auth = s.guest.name, "guest"
+			logf("login user=%s auth=guest %v", sess.User, sess)
+			return nil
+		}
+		if s.signup.enabled && strings.EqualFold(name, s.signup.name) {
+			return signup(t, s, sess, deadline)
 		}
 		if err := t.write(s.passwordPrompt); err != nil {
 			return err
@@ -265,19 +308,29 @@ func motd(s *settings, sess *session) string {
 	return expand(m, sess.vars(false), nil)
 }
 
-// menu until the caller hangs up, says goodbye or a selection ends with
-// after = hangup
-func menu(t *term, s *settings, sess *session) error {
-	redraw := true
+// menu until the caller hangs up, says goodbye, the time is up or a
+// selection ends with after = hangup; first (if not nil) starts at once
+func menu(t *term, s *settings, sess *session, lim *limiter, first *menuItem) error {
+	items := s.visible(sess)
+	redraw := first == nil
 	for {
-		if redraw {
+		sess.TimeLeft = lim.timeLeft(time.Now())
+		left, limited := lim.left(time.Now())
+		if limited && left <= 0 {
+			return errTimeLimit
+		}
+		idle := time.Now().Add(s.idleTimeout)
+		if limited && lim.deadline.Before(idle) {
+			idle = lim.deadline
+		}
+		if redraw && first == nil {
 			var b strings.Builder
 			b.WriteString(expand(s.menuTitle, sess.vars(false), nil))
 			width := len(s.hangup[0])
-			for _, it := range s.items {
+			for _, it := range items {
 				width = max(width, len(it.key))
 			}
-			for _, it := range s.items {
+			for _, it := range items {
 				fmt.Fprintf(&b, "\r\n  [%s]%*s %s", it.key, width-len(it.key), "", it.label)
 			}
 			fmt.Fprintf(&b, "\r\n  [%s]%*s Goodbye (hang up)\r\n", s.hangup[0], width-len(s.hangup[0]), "")
@@ -285,49 +338,62 @@ func menu(t *term, s *settings, sess *session) error {
 				return err
 			}
 		}
-		if err := t.write(s.menuPrompt); err != nil {
-			return err
-		}
-
-		// a line (the key, the item's name or an alias: P, ppp), or with
-		// hotkeys one key that selects at once
-		var choice string
-		var err error
-		if s.hotkeys {
-			if choice, err = t.readKey(time.Now().Add(s.idleTimeout)); err == nil {
-				t.write(choice + "\r\n")
-			}
-		} else {
-			choice, err = t.readLine(time.Now().Add(s.idleTimeout), s.maxInput, true, "")
-		}
-		choice = strings.ToUpper(strings.TrimSpace(choice))
-		if err == io.EOF || contains(s.hangup, choice) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		redraw = false
-		if choice == "" {
-			continue
-		}
-		if choice == "?" || choice == "MENU" {
-			redraw = true
-			continue
-		}
-		it := s.selects(choice)
+		it := first
+		first = nil
 		if it == nil {
-			t.write("Unknown selection; ? shows the menu.\r\n")
-			continue
+			if err := t.write(expand(s.menuPrompt, sess.vars(false), nil)); err != nil {
+				return err
+			}
+
+			// a line (the key, the item's name or an alias: P, ppp), or
+			// with hotkeys one key that selects at once
+			var choice string
+			var err error
+			if s.hotkeys {
+				if choice, err = t.readKey(idle); err == nil {
+					t.write(choice + "\r\n")
+				}
+			} else {
+				choice, err = t.readLine(idle, s.maxInput, true, "")
+			}
+			choice = strings.ToUpper(strings.TrimSpace(choice))
+			if err == io.EOF || contains(s.hangup, choice) {
+				return nil
+			}
+			if errors.Is(err, errTimeout) && limited && !time.Now().Before(lim.deadline) {
+				return errTimeLimit
+			}
+			if err != nil {
+				return err
+			}
+			redraw = false
+			if choice == "" {
+				continue
+			}
+			if choice == "?" || choice == "MENU" {
+				redraw = true
+				continue
+			}
+			// what the caller may not use, it cannot tell from what is
+			// not there
+			if it = selectFrom(items, choice); it == nil {
+				t.write("Unknown selection; ? shows the menu.\r\n")
+				continue
+			}
 		}
 		// what the caller types from here on is the selection's: nothing
 		// is read ahead
 
 		sess.Selection = it.name
+		sess.TimeLeft = lim.timeLeft(time.Now())
 		logf("start %s user=%s mode=%s", it.name, sess.User, it.mode)
-		err = launch(t, it, sess, logf)
+		err := launch(t, it, sess, lim.deadline, logf)
 		if errors.Is(err, errHangup) || terminated.Load() {
 			return errHangup
+		}
+		if errors.Is(err, errTimeLimit) {
+			logf("%s: time limit", it.name)
+			return errTimeLimit
 		}
 		redraw = true
 		if err != nil {
@@ -344,7 +410,11 @@ func menu(t *term, s *settings, sess *session) error {
 
 // selects: the item a choice (upper case) selects
 func (s *settings) selects(choice string) *menuItem {
-	for _, it := range s.items {
+	return selectFrom(s.items, choice)
+}
+
+func selectFrom(items []*menuItem, choice string) *menuItem {
+	for _, it := range items {
 		if contains(it.choices, choice) {
 			return it
 		}

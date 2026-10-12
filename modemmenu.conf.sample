@@ -16,6 +16,8 @@
 ;
 ; Values may be "quoted" to keep spaces at their ends; \r \n \t \e and \xHH
 ; are those bytes in the texts of [general] and [menu] and in send.
+; Comments start with ; or #, on a line of their own or after a value
+; (after a space: "key = P ; PPP"); \; and \# are the characters.
 ;
 ; The selection gets the session as {placeholders} in its command, send,
 ; run_as and the rlogin fields, and as MODEM_* in its environment.  In a
@@ -71,6 +73,51 @@ login_timeout = 90
 idle_timeout = 300
 ; user names taken (others are refused without asking a backend)
 user_pattern = ^[A-Za-z0-9][A-Za-z0-9._@-]{0,63}$
+; time limits (0: none), from the login: a call, and a user's calls in a
+; day (kept in state_dir/usage).  A selection is hung up at the limit.
+; {time_left} (whole minutes) shows what is left, e.g. in [menu] prompt
+time_limit = 0
+daily_limit = 0
+state_dir = /var/lib/modemmenu
+
+; groups of users for the items' groups = (members of system groups count
+; too, for logins by auth = system)
+[groups]
+sysops = alice
+;dialup = alice bob carol
+
+; a guest account: its name at the login prompt, no password; it sees only
+; the items with guest = yes, for time_limit at most
+[guest]
+enabled = no
+name = guest
+time_limit = 15m
+
+; new accounts: the name at the login prompt starts a signup, which adds
+; user:bcrypt to the users file (auth must have file).  pending = yes locks
+; the account (user:!hash) until the sysop removes the !
+[signup]
+enabled = no
+name = new
+pending = yes
+min_password = 8
+;file = /etc/asterisk/modemmenu.users
+;message = "\r\nNew account.  Choose a user name and a password.\r\n"
+
+; caller ID: numbers or patterns (* and ? as in file names; anonymous: no
+; caller ID).  With allow, only those numbers; deny refuses some
+[callerid]
+;allow = 555* 1800*
+;deny = 1900* 5550000
+anonymous = yes
+deny_message = "\r\nThis line does not take your call.\r\n"
+
+; a number of its own: deny = yes refuses it; user = logs it in as that
+; user without a password (caller ID can be forged: only where the network
+; vouches for it); item = starts that item at once after the login
+;[number 5551234]
+;user = alice
+;item = ppp
 
 ; users in a text file: user:hash, # comments.  hash: bcrypt ($2b$...,
 ; modemmenu -hash makes one), {SHA256}hex, {SHA512}hex, {SSHA256}base64,
@@ -186,6 +233,15 @@ hotkeys = no
 ;                        first, MODEM_* NAME=value lines and an empty line
 ;                        (the password only with pass_password), for
 ;                        modemmenu -serve or any program that reads it
+;
+; Who sees an item (all that are set must pass; the others neither see nor
+; can choose it):
+;   users = alice bob    these users ...
+;   groups = sysops      ... or members of these groups ([groups], or the
+;                        system's for auth = system)
+;   min_baud = 9600      the connect rate at least this (unknown: no)
+;   callerids = 555*     the caller ID matching one of these
+;   guest = no           yes: guests see it too
 
 ; A BBS by rlogin: Synchronet and Mystic log the caller in with the user
 ; name as the server user and the password as the client user
@@ -209,6 +265,7 @@ after = menu
 [item ppp]
 key = P
 aliases = dialup net
+min_baud = 9600
 label = PPP (dial-up networking)
 mode = exec
 command = exec /usr/sbin/pppd nodetach noauth local lock passive 192.168.77.1:192.168.77.2 ms-dns 192.168.77.1 ipparam {user}
@@ -217,6 +274,7 @@ command = exec /usr/sbin/pppd nodetach noauth local lock passive 192.168.77.1:19
 [item shell]
 key = S
 label = Shell
+groups = sysops
 mode = exec
 run_as = {user}
 tty = sane
