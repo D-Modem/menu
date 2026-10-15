@@ -51,6 +51,7 @@ type menuItem struct {
 	after       string // hangup, menu
 	timeout     time.Duration
 	access      itemAccess
+	minPassword int // mode = passwd
 }
 
 // serverSettings: [server], for modemmenu -serve
@@ -246,7 +247,15 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 	it.terminal = sec.get("terminal", "ANSI")
 	it.runAs = sec.get("run_as", "")
 	it.tty = strings.ToLower(sec.get("tty", "raw"))
-	it.after = strings.ToLower(sec.get("after", "hangup"))
+	defAfter := "hangup"
+	if strings.EqualFold(sec.get("mode", ""), "passwd") {
+		// a password changed is no reason to hang up
+		defAfter = "menu"
+	}
+	it.after = strings.ToLower(sec.get("after", defAfter))
+	if it.minPassword, err = sec.int("min_password", 8); err != nil {
+		return nil, err
+	}
 	if it.password, err = sec.bool("pass_password", true); err != nil {
 		return nil, err
 	}
@@ -271,6 +280,8 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 		return nil, err
 	}
 	switch it.mode {
+	case "passwd":
+		// built in: no command, no server
 	case "exec":
 		if it.command == "" {
 			return nil, fmt.Errorf("[item %s] mode = exec needs a command", name)
@@ -286,7 +297,7 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 			return nil, fmt.Errorf("[item %s] path: %q (an absolute path)", name, it.path)
 		}
 	default:
-		return nil, fmt.Errorf("[item %s] mode: %q (exec, tcp, unix, telnet or rlogin)", name, it.mode)
+		return nil, fmt.Errorf("[item %s] mode: %q (exec, tcp, unix, telnet, rlogin or passwd)", name, it.mode)
 	}
 	if it.tty != "raw" && it.tty != "sane" {
 		return nil, fmt.Errorf("[item %s] tty: %q (raw or sane)", name, it.tty)

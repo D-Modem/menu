@@ -24,6 +24,11 @@ type sqlAuth struct {
 	scheme  string
 	timeout time.Duration
 	db      *sql.DB
+	// changing passwords (mode = passwd items): update_query with
+	// update_args, the password as update_hash says
+	updateQuery string
+	updateArgs  []string
+	updateHash  string
 }
 
 var sqlDrivers = map[string]string{
@@ -57,6 +62,17 @@ func newSQLAuth(s *section) (authenticator, error) {
 	}
 	if a.timeout, err = s.duration("timeout", 10*time.Second); err != nil {
 		return nil, err
+	}
+	a.updateQuery = s.get("update_query", "")
+	a.updateArgs = fields(strings.ToLower(s.get("update_args", "password user")))
+	a.updateHash = strings.ToLower(s.get("update_hash", "bcrypt"))
+	for _, arg := range a.updateArgs {
+		if arg != "user" && arg != "password" && arg != "old_password" {
+			return nil, fmt.Errorf("[sql] update_args: %q (user, password, old_password)", arg)
+		}
+	}
+	if a.updateHash != "bcrypt" && a.updateHash != "none" {
+		return nil, fmt.Errorf("[sql] update_hash: %q (bcrypt, or none: the password as typed, for a query that hashes it)", a.updateHash)
 	}
 	// opening does not connect: a database that is down only fails the
 	// logins that reach it

@@ -186,6 +186,11 @@ run_as = {user}
 tty = sane
 pass_password = no
 command = exec "$SHELL" -l
+
+[item passwd]
+key = PW
+label = Change your password
+mode = passwd
 ```
 
 Comments start with `;` or `#`, on a line of their own or after a value
@@ -230,7 +235,8 @@ checks for expired and locked accounts.  It needs a build with PAM
 
 1. Install the PAM service: `make install` puts
    [modemmenu.pam.sample](modemmenu.pam.sample) in `/etc/pam.d/modemmenu`
-   (the distribution's `common-auth` and `common-account`).
+   (the distribution's `common-auth`, `common-account` and, for password
+   changes, `common-password`).
 2. Run Asterisk, and so modemmenu, as root for local accounts:
    `pam_unix` checks other users' passwords only for root.
 3. Add `system` to `[general] auth`, and in `[system]`:
@@ -245,6 +251,33 @@ checks for expired and locked accounts.  It needs a build with PAM
 An account that these rules keep out is "unknown" to this backend: the
 next one is asked, and the reason is logged.  With `run_as = {user}`, a
 selection such as the shell then runs as the caller's own account.
+
+### Changing passwords
+
+A `mode = passwd` item lets callers change their own password; it needs
+no command and returns to the menu (`after = menu`) by default.  The
+caller gives their current password, then the new one twice (at least
+the item's `min_password`, 8 characters, and not the current one; three
+tries).  The current password is checked against the backends again,
+which also finds the one that holds the account (a login by caller ID or
+by an upstream menu does not say), and the password changes there:
+
+| backend | how |
+|---|---|
+| file | the user's line rewritten in place under the file's lock (a note after the hash is kept); bcrypt, or text with `hash = plain` |
+| sql | `[sql] update_query` with `update_args` (`user`, `password`, `old_password`, in the order of its placeholders); `update_hash = bcrypt` stores a bcrypt hash, `none` the password as typed, for a query that hashes it.  Without `update_query`, SQL passwords cannot be changed here |
+| ldap | the Password Modify extended operation (RFC 3062), bound as the user, so the server's own password policy and hashing apply.  Active Directory does not support it |
+| system | PAM's password stack of `pam_service`; what it says (a quality module's reasons) goes to the caller |
+
+A refused password (the server's or PAM's policy) leaves the old one;
+the selections after a change get the new one in `MODEM_PASSWORD`.
+Guests have no password to change.  The log says who changed their
+password where, never the password.
+
+Run as root, `pam_unix` applies no quality checks (its `minlen` and
+the like are not for root): for a policy, put `pam_pwquality` before it
+with `enforce_for_root`, as
+[modemmenu.pam.sample](modemmenu.pam.sample) shows.
 
 ### Message of the day
 
@@ -452,13 +485,18 @@ caller hanging up, another modemmenu handing a logged-in caller over by
 a `mode = unix` item, and `SIGTERM`.  Calls test who sees what (users,
 groups, `min_baud`, caller ID), a guest, signups (logged in at once, and
 pending), refused and known numbers, and a selection hung up at the
-day's limit, then the day's next call refused.  The system backend's
-uid, root and group rules are tested with PAM replaced.
+day's limit, then the day's next call refused.  Password changes are
+tested in the users file (other lines and notes kept) and in SQLite, and
+on a call: a wrong current password, the rules for the new one, the
+change, the next login with it, and a guest.  The system backend's uid,
+root and group rules are tested with PAM replaced.
 
 Two more tests run when their servers are given:
 
 - `MODEMMENU_TEST_PAM=user:password make test`, as root with
-  `/etc/pam.d/modemmenu`: PAM against a real account.
+  `/etc/pam.d/modemmenu`: PAM against a real account, and its password
+  changed and back (the service needs a password stack).
 - `MODEMMENU_TEST_LDAP=ldap://host:port make test`: the LDAP backend,
   against a server with `uid=lduser,ou=people,dc=example,dc=com`
-  (password `ldpass`).
+  (password `ldpass`), and that password changed and back (the server
+  must let users write their own `userPassword`).

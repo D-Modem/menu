@@ -166,11 +166,22 @@ dsn = modem:secret@tcp(127.0.0.1:3306)/bbs
 query = SELECT password FROM users WHERE username = ? AND enabled = 1
 args = user
 hash = auto
+; mode = passwd items: update_query sets the password, with update_args
+; (user, password, old_password, in the order of its placeholders);
+; update_hash = bcrypt stores a bcrypt hash, none the password as typed
+; (for a query that hashes it).  Without update_query, SQL passwords
+; cannot be changed from the menu
+update_query = UPDATE users SET password = ? WHERE username = ?
+update_args = password user
+update_hash = bcrypt
 ;driver = postgres
 ;dsn = postgres://modem:secret@127.0.0.1/bbs?sslmode=disable
 ;query = SELECT 1 FROM users WHERE username = $1 AND password = crypt($2, password)
 ;args = user password
 ;hash = none
+;update_query = UPDATE users SET password = crypt($1, gen_salt('bf')) WHERE username = $2
+;update_args = password user
+;update_hash = none
 ;driver = sqlite
 ;dsn = /var/lib/asterisk/users.db
 ;query = SELECT password FROM users WHERE username = ?
@@ -199,7 +210,7 @@ max_sessions = 32
 title = "\r\nMain menu\r\n"
 prompt = "\r\nSelection: "
 ; the items in order (default: every [item ...] in file order)
-items = bbs ppp shell
+items = bbs ppp shell passwd
 ; the caller types a choice and Enter: an item's key, its name or one of
 ; its aliases, in any case (P, p, ppp).  ? shows the menu again.  What hangs
 ; up (the first one is shown in the menu):
@@ -213,6 +224,8 @@ hotkeys = no
 ;   aliases = ...        more words that select it (its name always does)
 ;   label = ...          its line in the menu
 ;   mode = exec          a program on the line: command (by /bin/sh -c)
+;          passwd        built in: the caller changes their password
+;                        (min_password = 8 characters)
 ;          tcp           a TCP server, raw: host, port; send is sent first
 ;          unix          a server on a unix socket, raw: path; send too
 ;                        (tcp, telnet and rlogin take a path as well, for
@@ -269,6 +282,15 @@ min_baud = 9600
 label = PPP (dial-up networking)
 mode = exec
 command = exec /usr/sbin/pppd nodetach noauth local lock passive 192.168.77.1:192.168.77.2 ms-dns 192.168.77.1 ipparam {user}
+
+; the caller's password changed where their account is: the users file,
+; SQL (update_query), LDAP (Password Modify, as the user) or the system
+; (PAM's password stack).  after = menu by default
+[item passwd]
+key = PW
+label = Change your password
+mode = passwd
+min_password = 8
 
 ; a shell of the caller's account (modemmenu runs as root for run_as)
 [item shell]

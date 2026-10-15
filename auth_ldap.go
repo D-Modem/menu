@@ -73,11 +73,49 @@ func newLDAPAuth(s *section) (authenticator, error) {
 func (a *ldapAuth) name() string { return "ldap" }
 
 func (a *ldapAuth) authenticate(ctx context.Context, user, password string) error {
+	conn, _, err := a.bindUser(user, password)
+	if conn != nil {
+		conn.Close()
+	}
+	return err
+}
+
+// bindUser: a connection bound as the user, and the user's DN
+func (a *ldapAuth) bindUser(user, password string) (*ldap.Conn, string, error) {
 	// an empty password would be an unauthenticated bind, which servers
 	// accept for any DN
 	if password == "" {
-		return errBadPassword
+		return nil, "", errBadPassword
 	}
+	conn, err := a.dial()
+	if err != nil {
+		return nil, "", err
+	}
+	dn, err := a.userDN(conn, user)
+	if err != nil {
+		conn.Close()
+		return nil, "", err
+	}
+	err = conn.Bind(dn, password)
+	var le *ldap.Error
+	if errors.As(err, &le) && le.ResultCode == ldap.LDAPResultInvalidCredentials {
+		conn.Close()
+		if a.bindDN != "" {
+			// a direct bind cannot tell an unknown DN from a wrong
+			// password: let the other backends try
+			return nil, "", errNoUser
+		}
+		return nil, "", errBadPassword
+	}
+	if err != nil {
+		conn.Close()
+		return nil, "", err
+	}
+	return conn, dn, nil
+}
+
+// dial the server, with StartTLS if configured
+func (a *ldapAuth) dial() (*ldap.Conn, error) {
 	d := &net.Dialer{Timeout: a.timeout}
 	host := a.url
 	if i := strings.Index(host, "://"); i >= 0 {
@@ -90,50 +128,54 @@ func (a *ldapAuth) authenticate(ctx context.Context, user, password string) erro
 	}
 	conn, err := ldap.DialURL(a.url, ldap.DialWithDialer(d), ldap.DialWithTLSConfig(tc))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer conn.Close()
 	conn.SetTimeout(a.timeout)
 	if a.startTLS {
 		if err := conn.StartTLS(tc); err != nil {
-			return fmt.Errorf("starttls: %v", err)
+			conn.Close()
+			return nil, fmt.Errorf("starttls: %v", err)
 		}
 	}
+	return conn, nil
+}
 
-	dn := ""
+// userDN: the user's DN, from bind_dn or by the search
+func (a *ldapAuth) userDN(conn *ldap.Conn, user string) (string, error) {
 	if a.bindDN != "" {
-		dn = expand(a.bindDN, map[string]string{"user": user}, ldap.EscapeDN)
-	} else {
-		if a.searchDN != "" {
-			if err := conn.Bind(a.searchDN, a.searchPass); err != nil {
-				return fmt.Errorf("bind %s: %v", a.searchDN, err)
-			}
-		}
-		filter := expand(a.filter, map[string]string{"user": user}, ldap.EscapeFilter)
-		res, err := conn.Search(ldap.NewSearchRequest(a.base, ldap.ScopeWholeSubtree,
-			ldap.NeverDerefAliases, 2, int(a.timeout/time.Second), false,
-			filter, []string{"dn"}, nil))
-		if err != nil {
-			return fmt.Errorf("search %s: %v", filter, err)
-		}
-		switch len(res.Entries) {
-		case 0:
-			return errNoUser
-		case 1:
-			dn = res.Entries[0].DN
-		default:
-			return fmt.Errorf("search %s: more than one entry", filter)
+		return expand(a.bindDN, map[string]string{"user": user}, ldap.EscapeDN), nil
+	}
+	if a.searchDN != "" {
+		if err := conn.Bind(a.searchDN, a.searchPass); err != nil {
+			return "", fmt.Errorf("bind %s: %v", a.searchDN, err)
 		}
 	}
-	err = conn.Bind(dn, password)
-	var le *ldap.Error
-	if errors.As(err, &le) && le.ResultCode == ldap.LDAPResultInvalidCredentials {
-		if a.bindDN != "" {
-			// a direct bind cannot tell an unknown DN from a wrong
-			// password: let the other backends try
-			return errNoUser
-		}
-		return errBadPassword
+	filter := expand(a.filter, map[string]string{"user": user}, ldap.EscapeFilter)
+	res, err := conn.Search(ldap.NewSearchRequest(a.base, ldap.ScopeWholeSubtree,
+		ldap.NeverDerefAliases, 2, int(a.timeout/time.Second), false,
+		filter, []string{"dn"}, nil))
+	if err != nil {
+		return "", fmt.Errorf("search %s: %v", filter, err)
 	}
-	return err
+	switch len(res.Entries) {
+	case 0:
+		return "", errNoUser
+	case 1:
+		return res.Entries[0].DN, nil
+	}
+	return "", fmt.Errorf("search %s: more than one entry", filter)
+}
+
+// changePassword by the Password Modify extended operation (RFC 3062),
+// bound as the user: the server applies its own password policy
+func (a *ldapAuth) changePassword(_ context.Context, _ *term, user, old, new string) error {
+	conn, dn, err := a.bindUser(user, old)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err := conn.PasswordModify(ldap.NewPasswordModifyRequest(dn, old, new)); err != nil {
+		return fmt.Errorf("%w: %v", errRefused, err)
+	}
+	return nil
 }

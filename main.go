@@ -387,7 +387,7 @@ func menu(t *term, s *settings, sess *session, lim *limiter, first *menuItem) er
 		sess.Selection = it.name
 		sess.TimeLeft = lim.timeLeft(time.Now())
 		logf("start %s user=%s mode=%s", it.name, sess.User, it.mode)
-		err := launch(t, it, sess, lim.deadline, logf)
+		err := launch(t, s, it, sess, lim.deadline, logf)
 		if errors.Is(err, errHangup) || terminated.Load() {
 			return errHangup
 		}

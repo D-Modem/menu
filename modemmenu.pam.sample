@@ -2,5 +2,14 @@
 #
 # pam_unix checks another user's password only for root: run modemmenu
 # (Asterisk) as root for local accounts.
+#
+# The password stack is for mode = passwd items.  Run as root, pam_unix
+# applies no quality checks of its own (minlen and the like are not for
+# root): for a policy, put pam_pwquality before it with enforce_for_root,
+# e.g. instead of common-password:
+#
+#   password requisite pam_pwquality.so retry=1 minlen=12 enforce_for_root
+#   password required  pam_unix.so yescrypt use_authtok
 @include common-auth
 @include common-account
+@include common-password

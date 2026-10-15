@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -221,4 +222,8 @@ func TestMenuSettings(t *testing.T) {
 	if _, err := load("hotkeys = yes", ppp); err != nil {
 		t.Errorf("hotkeys with one-character keys: %v", err)
 	}
+}
+
+func runGo(args ...string) ([]byte, error) {
+	return exec.Command("go", args...).CombinedOutput()
 }

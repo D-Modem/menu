@@ -20,8 +20,10 @@ import (
 
 // launch the selection: its error, or nil when it ended by itself;
 // errTimeLimit when deadline (if not zero) ended it
-func launch(t *term, it *menuItem, s *session, deadline time.Time, logf func(string, ...any)) error {
+func launch(t *term, cfg *settings, it *menuItem, s *session, deadline time.Time, logf func(string, ...any)) error {
 	switch it.mode {
+	case "passwd":
+		return changePasswordItem(t, cfg, it, s, deadline)
 	case "exec":
 		return runExec(t, it, s, deadline, logf)
 	default:
