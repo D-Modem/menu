@@ -95,7 +95,10 @@ func runExec(t *term, cfg *settings, it *menuItem, s *session, deadline time.Tim
 		}
 		defer df.close()
 		v["node"], v["dropfile_dir"] = strconv.Itoa(df.node), df.dir
-		env = append(env, "MODEM_NODE="+v["node"], "MODEM_DROPFILE_DIR="+df.dir)
+		// the first file's path, as BBSs pass it (Synchronet's %f)
+		v["dropfile"] = df.files[0]
+		env = append(env, "MODEM_NODE="+v["node"], "MODEM_DROPFILE_DIR="+df.dir,
+			"MODEM_DROPFILE="+df.files[0])
 	}
 
 	cmd := exec.Command("/bin/sh", "-c", expand(it.command, v, shellQuote))

@@ -395,13 +395,16 @@ and the sample's PPP item says so.
 
 BBS doors (games and utilities written for BBSs) learn who called, on
 what line and for how long from a drop file.  An exec item with
-`dropfile = door32.sys door.sys` writes those files before its program
-starts and removes them after:
+`dropfile = door32.sys door.sys dorinfo1.def` writes those files before
+its program starts and removes them after, laid out as Synchronet,
+Mystic and MBSE write them:
 
-| file | what |
-|---|---|
-| `DOOR32.SYS` | 11 lines: comm type and handle, rate, BBS name, user number, name, alias, security level, **time left in minutes**, emulation, node |
-| `DOOR.SYS` | the 52-line GAP format: port, rate, node, name, phone (the caller ID), security level, **seconds and minutes left**, graphics mode, user number, sysop, ... |
+| `dropfile =` | file | for | what |
+|---|---|---|---|
+| `door32.sys` | `DOOR32.SYS` | 32-bit doors on stdin/stdout or a socket (Mystic's Door32) | 11 lines: comm type and handle, rate, BBS name, user number, name, alias, security level, **minutes left**, emulation, node |
+| `door.sys` | `DOOR.SYS` | DOS doors (GAP, Wildcat, PCBoard...) | 52 lines: port, rate, node, name, phone (the caller ID), security level, **seconds and minutes left**, graphics mode, user number, sysop... (`door_sys_lines = 31`: the old 31, the rest blank) |
+| `dorinfo1.def` | `DORINFO1.DEF` | RBBS, QuickBBS, RemoteAccess doors | 13 lines, upper case: BBS, sysop, port, `38400 BAUD,N,8,1`, caller's first and last name, graphics, security level, **minutes left**, FOSSIL |
+| `dorinfo#.def` | `DORINFO1.DEF` to `DORINFOF.DEF` | the same, a file per node | the node as one hex digit, so 15 nodes at most |
 
 ```
 [dropfile]
@@ -412,7 +415,7 @@ security = 10
 [item lord]
 key = L
 label = Legend of the Red Dragon
-dropfile = door.sys
+dropfile = door.sys dorinfo1.def
 dropfile_dir = /srv/doors/lord/node{node}
 security = 20
 tty = sane
@@ -436,11 +439,29 @@ version and setup.)
 - **Time left:** the session's at the start (a day, without a limit);
   the door's own clock counts down from there.
 - **Password:** not in the files. Doors do not need it.
+- **Path:** the first file's is `{dropfile}` and `MODEM_DROPFILE`, for
+  doors that take it on their command line (Synchronet's `%f`).
 
-The files have DOS line ends, as doors expect.  `comm_type`,
-`comm_handle` and `com_port` say how the door reaches the caller: a
-door on Linux uses its stdin and stdout (the caller's line); one under
-DOSEMU uses the port DOSEMU maps to them.
+The files have DOS line ends, as doors expect, and upper-case names
+unless `dropfile_lowercase = yes` (doors on Linux often look for
+`door32.sys`).  `[dropfile]` holds what they say of the BBS and the
+line; its defaults are what Synchronet writes for a door on stdin and
+stdout, which is how modemmenu runs doors:
+
+| `[dropfile]` | default | why |
+|---|---|---|
+| `comm_type`, `comm_handle` | `0`, `-1` | `DOOR32.SYS`: local, no handle to inherit: the door talks on its stdin and stdout, the caller's line (Synchronet's choice for stdio doors; MBSE, on a modem's tty, writes `1` serial) |
+| `rate` | `38400` | the DTE rate, as Synchronet writes: doors built on DMlib and others refuse a rate a FOSSIL does not have, such as a modem's 26400.  `connect` gives the modems' rate |
+| `com_port`, `fossil` | `COM1:`, `yes` | a DOS door under DOSEMU reaches the caller through the port DOSEMU maps to the line, with a FOSSIL driver (`COM0:` is a local login) |
+| `four_digit_years` | `no` | `DOOR.SYS`'s dates as MM/DD/YYYY, which some newer doors want (MBSE's option) |
+| `bbs_name`, `sysop`, `security`, `emulation` | | what the BBS is called, its sysop, the callers' security level (an item's `security =` overrides it), `ansi` or `ascii` |
+
+Synchronet's documents the formats in its wiki
+([DOOR32.SYS](https://wiki.synchro.net/ref:door32.sys),
+[DOOR.SYS](https://wiki.synchro.net/ref:door.sys),
+[DORINFO1.DEF](https://wiki.synchro.net/ref:dorinfo1.def)), and how it
+runs doors on Linux ([doors](https://wiki.synchro.net/howto:door:index),
+[DOSEMU](https://wiki.synchro.net/howto:dosemu)).
 
 ### Last callers
 
@@ -620,7 +641,10 @@ and back to the menu, a cooked shell, and an exec selection's
 environment and session file.  It also runs `modemmenu -serve` on a unix
 socket: a session from an app_dmodem header (on a pty of its own), a
 caller hanging up, another modemmenu handing a logged-in caller over by
-a `mode = unix` item, and `SIGTERM`.  Calls test who sees what (users,
+a `mode = unix` item, and `SIGTERM`.  Drop files are tested line by line in all three formats
+(Synchronet's defaults, the other settings, the 31-line `DOOR.SYS`,
+names split for `DORINFO1.DEF`) and on a call (the files, their names,
+the node, the environment, the clean-up).  Calls test who sees what (users,
 groups, `min_baud`, caller ID), a guest, signups (logged in at once, and
 pending), refused and known numbers, and a selection hung up at the
 day's limit, then the day's next call refused.  Password changes are

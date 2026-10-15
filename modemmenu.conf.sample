@@ -235,7 +235,8 @@ max_sessions = 32
 ;max_clients = 16
 
 ; drop files for doors (an exec item's dropfile =): what they say of the
-; BBS, and how the door reaches the caller
+; BBS, and how the door reaches the caller.  The defaults are what
+; Synchronet writes for a door on stdin and stdout
 [dropfile]
 bbs_name = modemmenu
 sysop = Sysop
@@ -243,14 +244,22 @@ sysop = Sysop
 security = 10
 ; ansi or ascii
 emulation = ansi
-; DOOR32.SYS: 0 local, 1 serial, 2 telnet, and its handle; DOOR.SYS's port
-; (COM0: is local).  A door on Linux talks on its stdin and stdout, which
-; is the caller's line, whatever these say; doors under DOSEMU want the
-; port DOSEMU gives them
-comm_type = 2
-comm_handle = 0
+; DOOR32.SYS's comm type: 0 local (stdin and stdout: a door on the line),
+; 1 serial, 2 telnet; its handle (-1 for 0, else 0 by default)
+comm_type = 0
+;comm_handle = -1
+; DOOR.SYS's and DORINFO's port: COM1: (COM0: is local); a DOS door under
+; DOSEMU wants the port DOSEMU gives it, with a FOSSIL driver (DORINFO's
+; FOSSIL flag)
 com_port = COM1:
-; doors running at once, each on a node of its own (state_dir/nodes)
+fossil = yes
+; the rate the files give: a FOSSIL's rate (doors built on DMlib refuse
+; others, such as a modem's 26400), or connect for the modems'
+rate = 38400
+; MM/DD/YYYY instead of MM/DD/YY in DOOR.SYS (some newer doors)
+four_digit_years = no
+; doors running at once, each on a node of its own (state_dir/nodes);
+; 15 at most with dorinfo#.def
 max_nodes = 64
 
 [menu]
@@ -307,14 +316,19 @@ hotkeys = no
 ;   guest = no           yes: guests see it too
 ;
 ; A door (mode = exec) and its drop files:
-;   dropfile = door32.sys door.sys
+;   dropfile = door32.sys door.sys dorinfo1.def dorinfo#.def
 ;                        written before the program starts, removed after,
 ;                        with the user, the rate and the time left; the
-;                        node and the directory are {node} and
-;                        {dropfile_dir} in command, MODEM_NODE and
-;                        MODEM_DROPFILE_DIR in the environment
+;                        node, the directory and the first file are
+;                        {node}, {dropfile_dir} and {dropfile} in command,
+;                        MODEM_NODE, MODEM_DROPFILE_DIR and MODEM_DROPFILE
+;                        in the environment.  dorinfo#.def: DORINFO1.DEF to
+;                        DORINFOF.DEF by the node
 ;   dropfile_dir =       where (e.g. /srv/doors/node{node}); default: a new
 ;                        directory each time
+;   dropfile_lowercase = no  yes: door32.sys..., for doors on Linux
+;   door_sys_lines = 52  31: the old DOOR.SYS (the rest blank), for doors
+;                        that do not take the longer one
 ;   security = 0         the drop files' security level ([dropfile]'s if 0)
 
 ; A BBS by rlogin: Synchronet and Mystic log the caller in with the user
@@ -386,7 +400,7 @@ after = menu
 ;[item lord]
 ;key = L
 ;label = Legend of the Red Dragon
-;dropfile = door.sys
+;dropfile = door.sys dorinfo1.def
 ;dropfile_dir = /srv/doors/lord/node{node}
 ;tty = sane
 ;command = cd /srv/doors/lord && exec dosemu -dumb -E "lord.bat $MODEM_NODE"

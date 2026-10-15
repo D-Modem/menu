@@ -32,34 +32,36 @@ type general struct {
 }
 
 type menuItem struct {
-	name        string
-	key         string   // shown in the menu
-	choices     []string // what selects it, upper case: key, name, aliases
-	label       string
-	mode        string // exec, tcp, rlogin, telnet
-	command     string
-	host        string
-	port        int
-	path        string // a unix socket instead of host and port
-	header      bool   // the session header first
-	send        string
-	rloginLocal string
-	rloginUser  string
-	rloginTerm  string
-	terminal    string
-	runAs       string
-	tty         string // raw, sane
-	password    bool
-	sessionFile bool
-	after       string // hangup, menu
-	timeout     time.Duration
-	access      itemAccess
-	minPassword int      // mode = passwd
-	timeWarning bool     // the time_warning is written on the line
-	dropfiles   []string // DOOR32.SYS, DOOR.SYS
-	dropfileDir string   // where ("": a new directory each time)
-	security    int      // the drop files' security level (0: [dropfile]'s)
-	count       int      // mode = callers: how many
+	name          string
+	key           string   // shown in the menu
+	choices       []string // what selects it, upper case: key, name, aliases
+	label         string
+	mode          string // exec, tcp, rlogin, telnet
+	command       string
+	host          string
+	port          int
+	path          string // a unix socket instead of host and port
+	header        bool   // the session header first
+	send          string
+	rloginLocal   string
+	rloginUser    string
+	rloginTerm    string
+	terminal      string
+	runAs         string
+	tty           string // raw, sane
+	password      bool
+	sessionFile   bool
+	after         string // hangup, menu
+	timeout       time.Duration
+	access        itemAccess
+	minPassword   int      // mode = passwd
+	timeWarning   bool     // the time_warning is written on the line
+	dropfiles     []string // DOOR32.SYS, DOOR.SYS
+	dropfileDir   string   // where ("": a new directory each time)
+	security      int      // the drop files' security level (0: [dropfile]'s)
+	doorSysLines  int      // DOOR.SYS: 52, or 31 (the rest blank)
+	dropfileLower bool     // the files' names in lower case
+	count         int      // mode = callers: how many
 }
 
 // serverSettings: [server], for modemmenu -serve
@@ -220,6 +222,9 @@ func loadSettings(path string) (*settings, error) {
 	if err := checkAccess(s); err != nil {
 		return nil, err
 	}
+	if err := checkDropfiles(s); err != nil {
+		return nil, err
+	}
 	if s.hotkeys {
 		for _, it := range s.items {
 			if len(it.key) != 1 {
@@ -283,6 +288,15 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 	}
 	it.dropfileDir = sec.get("dropfile_dir", "")
 	if it.security, err = sec.int("security", 0); err != nil {
+		return nil, err
+	}
+	if it.doorSysLines, err = sec.int("door_sys_lines", 52); err != nil {
+		return nil, err
+	}
+	if it.doorSysLines != 52 && it.doorSysLines != 31 {
+		return nil, fmt.Errorf("[item %s] door_sys_lines: %d (52 or 31)", name, it.doorSysLines)
+	}
+	if it.dropfileLower, err = sec.bool("dropfile_lowercase", false); err != nil {
 		return nil, err
 	}
 	if len(it.dropfiles) > 0 && strings.ToLower(sec.get("mode", "exec")) != "exec" {
