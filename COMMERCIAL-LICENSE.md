@@ -1,6 +1,6 @@
 # Commercial license
 
-PBX-Modem (`modemmenu`) is Copyright (C) 2026 Neo-Desktop and is offered
+modemmenu is Copyright (C) 2026 Neo-Desktop and is offered
 under two licenses; you choose one.
 
 ## The GNU Affero General Public License, version 3 (the default)
@@ -29,7 +29,7 @@ A commercial license is granted by Neo-Desktop, the copyright holder,
 on terms agreed with you (scope, term and fee).
 
 **To ask for one**, open an issue at
-<https://github.com/Neo-Desktop/pbx-modem/issues> titled "Commercial
+<https://github.com/Neo-Desktop/modemmenu/issues> titled "Commercial
 license", saying who you are and roughly what you want to do.  Keep
 anything confidential out of the issue: a private channel follows from
 there.

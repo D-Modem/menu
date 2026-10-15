@@ -1,4 +1,4 @@
-module github.com/Neo-Desktop/pbx-modem
+module github.com/Neo-Desktop/modemmenu
 
 go 1.22
 

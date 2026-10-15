@@ -587,7 +587,7 @@ Two more tests run when their servers are given:
 
 Copyright (C) 2026 Neo-Desktop.
 
-PBX-Modem is free software under the GNU Affero General Public License,
+modemmenu is free software under the GNU Affero General Public License,
 version 3 only ([LICENSE](LICENSE), `SPDX-License-Identifier:
 AGPL-3.0-only`): use it, study it, change it and share it, commercially
 too, as long as what you distribute, and a modified version that people

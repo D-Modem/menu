@@ -5,7 +5,7 @@ sending a change, run `make test` (see the README's Tests section).
 
 ## The contributor agreement
 
-PBX-Modem is offered under the AGPL-3.0 and, by Neo-Desktop, under
+modemmenu is offered under the AGPL-3.0 and, by Neo-Desktop, under
 commercial licenses ([COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)).
 For contributions to be part of both, each one comes with this
 agreement.  By submitting a contribution (a pull request, a patch or
