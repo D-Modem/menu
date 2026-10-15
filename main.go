@@ -206,6 +206,11 @@ func run(t *term, s *settings, sess *session) int {
 	}
 	setAtExit(lim.done)
 	defer lim.done()
+	if s.hasCallers() {
+		if err := recordCaller(s.limits.stateDir, sess, time.Now()); err != nil {
+			logf("callers: %v", err)
+		}
+	}
 	sess.TimeLeft = lim.timeLeft(time.Now())
 
 	t.write(expand(s.welcome, sess.vars(false), nil))

@@ -384,3 +384,48 @@ func TestTimeLimits(t *testing.T) {
 		t.Errorf("users file:\n%s", users)
 	}
 }
+
+// the time_warning on the line while a selection runs, and not for an
+// item with time_warning = no
+func TestTimeWarning(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "modemmenu")
+	if out, err := runGo("build", "-o", bin, "."); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+	users := filepath.Join(dir, "users")
+	os.WriteFile(users, []byte("bob:{PLAIN}secret\n"), 0o600)
+	conf := filepath.Join(dir, "c.conf")
+	os.WriteFile(conf, []byte(fmt.Sprintf(`
+[general]
+log = none
+auth = file
+time_limit = 4s
+time_warning = 2s
+time_warning_message = "\r\n*** {time_left} minute(s) left, {user} ***\r\n"
+[file]
+path = %s
+[item nap]
+command = exec sleep 30
+[item quiet]
+time_warning = no
+command = exec sleep 30
+`, users)), 0o600)
+	for _, c := range []struct {
+		item string
+		warn bool
+	}{{"nap", true}, {"quiet", false}} {
+		cl, cmd := callAs(t, bin, conf)
+		cl.expect("login: ")
+		cl.send("bob\r")
+		cl.expect("Password: ")
+		cl.send("secret\r")
+		cl.expect("Selection: ")
+		cl.send(c.item + "\r")
+		got := cl.expect("Your time is up.")
+		if warned := strings.Contains(got, "*** 0 minute(s) left, bob ***"); warned != c.warn {
+			t.Errorf("%s: warned %v, want %v:\n%q", c.item, warned, c.warn, got)
+		}
+		waitExit(t, cmd)
+	}
+}

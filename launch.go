@@ -21,9 +21,23 @@ import (
 // launch the selection: its error, or nil when it ended by itself;
 // errTimeLimit when deadline (if not zero) ended it
 func launch(t *term, cfg *settings, it *menuItem, s *session, deadline time.Time, logf func(string, ...any)) error {
+	// the time_warning before the deadline, on the line in the middle of
+	// what the selection says
+	if warn := cfg.limits.warning; warn > 0 && it.timeWarning && !deadline.IsZero() &&
+		time.Until(deadline) > warn {
+		timer := time.AfterFunc(time.Until(deadline)-warn, func() {
+			v := s.vars(false)
+			v["time_left"] = strconv.Itoa(int((time.Until(deadline) + 30*time.Second) / time.Minute))
+			t.write(expand(cfg.limits.warningMessage, v, nil))
+			logf("%s: time warning user=%s", it.name, s.User)
+		})
+		defer timer.Stop()
+	}
 	switch it.mode {
 	case "passwd":
 		return changePasswordItem(t, cfg, it, s, deadline)
+	case "callers":
+		return callersItem(t, cfg, it)
 	case "exec":
 		return runExec(t, it, s, deadline, logf)
 	default:

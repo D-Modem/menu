@@ -79,6 +79,10 @@ user_pattern = ^[A-Za-z0-9][A-Za-z0-9._@-]{0,63}$
 time_limit = 0
 daily_limit = 0
 state_dir = /var/lib/modemmenu
+; this long before the limit, the message is written on the line in the
+; middle of a running selection (not one with time_warning = no); 0: none
+time_warning = 2m
+time_warning_message = "\r\n\r\n*** {time_left} minute(s) left in this call ***\r\n"
 
 ; groups of users for the items' groups = (members of system groups count
 ; too, for logins by auth = system)
@@ -142,6 +146,16 @@ search_base = ou=people,dc=example,dc=com
 search_filter = (&(objectClass=posixAccount)(uid={user}))
 ;search_bind_dn = cn=modem,ou=services,dc=example,dc=com
 ;search_bind_password = secret
+; groups for the items' groups = (no group_base: LDAP has none): a group
+; is an entry under group_base that group_filter finds, {group} the item's
+; group, {dn} the caller's entry, {user} their name; searched as
+; search_bind_dn, else as the caller
+;group_base = ou=groups,dc=example,dc=com
+;group_filter = (&(cn={group})(|(member={dn})(uniqueMember={dn})(memberUid={user})))
+; how mode = passwd changes a password: exop (Password Modify, RFC 3062;
+; OpenLDAP, 389 DS and most), or ad (Active Directory's unicodePwd, over
+; ldaps:// or starttls only)
+;password_change = exop
 
 ; system: the accounts of this machine, by PAM: the auth and account stacks
 ; of pam_service (modemmenu.pam.sample as /etc/pam.d/modemmenu), so local
@@ -238,6 +252,9 @@ hotkeys = no
 ;   mode = exec          a program on the line: command (by /bin/sh -c)
 ;          passwd        built in: the caller changes their password
 ;                        (min_password = 8 characters)
+;          callers       built in: the last callers (count = 10), the time,
+;                        user and rate of each login (state_dir/callers,
+;                        the latest 200; kept only with such an item)
 ;          tcp           a TCP server, raw: host, port; send is sent first
 ;          unix          a server on a unix socket, raw: path; send too
 ;                        (tcp, telnet and rlogin take a path as well, for
@@ -292,6 +309,8 @@ key = P
 aliases = dialup net
 min_baud = 9600
 label = PPP (dial-up networking)
+; no time warning in the middle of PPP's frames
+time_warning = no
 mode = exec
 command = exec /usr/sbin/pppd nodetach noauth local lock passive 192.168.77.1:192.168.77.2 ms-dns 192.168.77.1 ipparam {user}
 
@@ -324,4 +343,78 @@ after = menu
 ;mode = unix
 ;path = /run/modemmenu/more.sock
 ;header = yes
+;after = menu
+
+; More items, to copy into items = above.  Each needs its program installed;
+; run_as = {user} (modemmenu as root) keeps callers in their own accounts.
+
+; who called last
+;[item callers]
+;key = LC
+;label = Last callers
+;mode = callers
+;count = 10
+
+; files by ZMODEM (lrzsz): rz receives what the caller's terminal sends,
+; binary, restricted to the directory, renaming rather than overwriting
+;[item upload]
+;key = U
+;label = Upload a file (ZMODEM)
+;run_as = {user}
+;command = cd "$HOME/uploads" && exec rz -b -R -E
+;after = menu
+; files by Kermit (C-Kermit): a Kermit server in the caller's files; their
+; terminal's Kermit GETs and SENDs, then FINISH returns to the menu
+;[item kermit]
+;key = K
+;label = Kermit file server
+;run_as = {user}
+;tty = sane
+;command = cd "$HOME" && exec kermit -Y -x
+;after = menu
+
+; the web as text: lynx with the anonymous account's restrictions (no
+; shell, no saving files); w3m is the other choice
+;[item web]
+;key = W
+;label = The web (lynx)
+;run_as = {user}
+;tty = sane
+;command = exec lynx -anonymous https://example.org/
+;after = menu
+
+; mail and news in the caller's account
+;[item mail]
+;key = M
+;label = Mail
+;groups = dialup
+;run_as = {user}
+;tty = sane
+;pass_password = no
+;command = exec mutt
+;after = menu
+;[item news]
+;key = N
+;label = Usenet news
+;run_as = {user}
+;tty = sane
+;command = exec tin -r
+;after = menu
+
+; chat among callers on your own IRC server
+;[item chat]
+;key = C
+;label = Chat (IRC)
+;run_as = {user}
+;tty = sane
+;command = exec irssi -c 127.0.0.1 -n {user}
+;after = menu
+
+; Gopher: quick even at 2400 bit/s
+;[item gopher]
+;key = GO
+;label = Gopherspace
+;run_as = {user}
+;tty = sane
+;command = exec lynx -anonymous gopher://gopher.floodgap.com/
 ;after = menu

@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf16"
 
 	"github.com/go-ldap/ldap/v3"
 )
@@ -27,6 +28,13 @@ type ldapAuth struct {
 	filter     string
 	searchDN   string
 	searchPass string
+	// groups for the items' groups = (group_base set): a group is an
+	// entry under group_base that group_filter finds
+	groupBase   string
+	groupFilter string
+	// how a password is changed: exop (Password Modify) or ad
+	// (Active Directory's unicodePwd)
+	passwordChange string
 }
 
 func newLDAPAuth(s *section) (authenticator, error) {
@@ -38,6 +46,13 @@ func newLDAPAuth(s *section) (authenticator, error) {
 		filter:     s.get("search_filter", "(uid={user})"),
 		searchDN:   s.get("search_bind_dn", ""),
 		searchPass: s.get("search_bind_password", ""),
+		groupBase:  s.get("group_base", ""),
+		groupFilter: s.get("group_filter",
+			"(&(cn={group})(|(member={dn})(uniqueMember={dn})(memberUid={user})))"),
+		passwordChange: strings.ToLower(s.get("password_change", "exop")),
+	}
+	if a.passwordChange != "exop" && a.passwordChange != "ad" {
+		return nil, fmt.Errorf("[ldap] password_change: %q (exop or ad)", a.passwordChange)
 	}
 	if a.startTLS, err = s.bool("starttls", false); err != nil {
 		return nil, err
@@ -166,16 +181,78 @@ func (a *ldapAuth) userDN(conn *ldap.Conn, user string) (string, error) {
 	return "", fmt.Errorf("search %s: more than one entry", filter)
 }
 
-// changePassword by the Password Modify extended operation (RFC 3062),
-// bound as the user: the server applies its own password policy
+// changePassword bound as the user, so that the server applies its own
+// password policy: by the Password Modify extended operation (RFC 3062),
+// or for Active Directory (password_change = ad, which does not have it)
+// by replacing unicodePwd, the old value deleted and the new one added
+// (which AD takes only over TLS: ldaps:// or starttls)
 func (a *ldapAuth) changePassword(_ context.Context, _ *term, user, old, new string) error {
 	conn, dn, err := a.bindUser(user, old)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-	if _, err := conn.PasswordModify(ldap.NewPasswordModifyRequest(dn, old, new)); err != nil {
+	if a.passwordChange == "ad" {
+		err = conn.Modify(adPasswordChange(dn, old, new))
+	} else {
+		_, err = conn.PasswordModify(ldap.NewPasswordModifyRequest(dn, old, new))
+	}
+	if err != nil {
 		return fmt.Errorf("%w: %v", errRefused, err)
 	}
 	return nil
+}
+
+// adPasswordChange: AD's change of a user's own password, unicodePwd's
+// old value deleted and the new one added, each in "quotes" as UTF-16LE
+func adPasswordChange(dn, old, new string) *ldap.ModifyRequest {
+	m := ldap.NewModifyRequest(dn, nil)
+	m.Delete("unicodePwd", []string{adPassword(old)})
+	m.Add("unicodePwd", []string{adPassword(new)})
+	return m
+}
+
+func adPassword(pw string) string {
+	u := utf16.Encode([]rune(`"` + pw + `"`))
+	b := make([]byte, 2*len(u))
+	for i, c := range u {
+		b[2*i] = byte(c)
+		b[2*i+1] = byte(c >> 8)
+	}
+	return string(b)
+}
+
+// memberOf: whether user is in group, an entry under group_base that
+// group_filter ({group}, the user's {dn} and {user}) finds; searched as
+// search_bind_dn, else as the user (with their password), else
+// anonymously.  errNoUser without group_base: LDAP has no groups here.
+func (a *ldapAuth) memberOf(user, password, group string) (bool, error) {
+	if a.groupBase == "" {
+		return false, errNoUser
+	}
+	var conn *ldap.Conn
+	var dn string
+	var err error
+	if a.searchDN == "" && password != "" {
+		conn, dn, err = a.bindUser(user, password)
+	} else {
+		if conn, err = a.dial(); err == nil {
+			// userDN binds as search_bind_dn when there is one
+			if dn, err = a.userDN(conn, user); err != nil {
+				conn.Close()
+			}
+		}
+	}
+	if err != nil {
+		return false, err
+	}
+	defer conn.Close()
+	filter := expand(a.groupFilter, map[string]string{"group": group, "dn": dn, "user": user}, ldap.EscapeFilter)
+	res, err := conn.Search(ldap.NewSearchRequest(a.groupBase, ldap.ScopeWholeSubtree,
+		ldap.NeverDerefAliases, 1, int(a.timeout/time.Second), false,
+		filter, []string{"dn"}, nil))
+	if err != nil {
+		return false, fmt.Errorf("group search %s: %v", filter, err)
+	}
+	return len(res.Entries) > 0, nil
 }

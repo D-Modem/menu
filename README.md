@@ -266,7 +266,7 @@ by an upstream menu does not say), and the password changes there:
 |---|---|
 | file | the user's line rewritten in place under the file's lock (a note after the hash is kept); bcrypt, or text with `hash = plain` |
 | sql | `[sql] update_query` with `update_args` (`user`, `password`, `old_password`, in the order of its placeholders); `update_hash = bcrypt` stores a bcrypt hash, `none` the password as typed, for a query that hashes it.  Without `update_query`, SQL passwords cannot be changed here |
-| ldap | the Password Modify extended operation (RFC 3062), bound as the user, so the server's own password policy and hashing apply.  Active Directory does not support it |
+| ldap | bound as the user, so the server's own password policy and hashing apply: the Password Modify extended operation (RFC 3062; OpenLDAP, 389 DS and most), or with `[ldap] password_change = ad` Active Directory's way, `unicodePwd`'s old value deleted and the new one added (AD takes it only over `ldaps://` or `starttls`) |
 | system | PAM's password stack of `pam_service`; what it says (a quality module's reasons) goes to the caller |
 
 A refused password (the server's or PAM's policy) leaves the old one;
@@ -314,12 +314,20 @@ selection to them).  All the rules that are set must pass:
 | item option | |
 |---|---|
 | `users = alice bob` | these users ... |
-| `groups = sysops` | ... or the members of these groups: `[groups]` (`sysops = alice bob`), or the system's groups for a login by `auth = system` |
+| `groups = sysops` | ... or the members of these groups: `[groups]` (`sysops = alice bob`), the system's groups for a login by `auth = system`, or the directory's for a login by LDAP (with `[ldap] group_base`, below) |
 | `min_baud = 9600` | the connect rate towards the caller at least this; an unknown rate does not pass |
 | `callerids = 555*` | the caller ID matching one of these patterns |
 | `guest = yes` | guests see it too (they see nothing else) |
 
 An item without `users` or `groups` is for every logged-in caller.
+
+LDAP groups count once `[ldap] group_base` is set: a group is an entry
+under it that `group_filter` finds.  The default filter,
+`(&(cn={group})(|(member={dn})(uniqueMember={dn})(memberUid={user})))`,
+takes `groupOfNames`, `groupOfUniqueNames` and `posixGroup` entries;
+`{group}` is the item's group, `{dn}` the caller's entry, `{user}` their
+name.  The search runs as `search_bind_dn` if there is one, else as the
+caller.  Each group's answer is kept for the rest of the call.
 
 ### Guests and new accounts
 
@@ -371,6 +379,37 @@ program gets `SIGHUP`, then `SIGKILL` 10 seconds later; a server's
 connection is closed).  `{time_left}` (whole minutes, empty without a
 limit) shows what is left, e.g. in `[menu] prompt`, and the selection
 gets it as `MODEM_TIME_LEFT`.
+
+`time_warning` (2 minutes) before the limit, `time_warning_message` is
+written on the line in the middle of what a running selection shows,
+so that a caller in a BBS or a shell has time to finish.  An item with
+`time_warning = no` gets none: PPP should not (text between its frames),
+and the sample's PPP item says so.
+
+### Last callers
+
+A `mode = callers` item shows the last callers (`count`, 10): the time,
+the user and the connect rate of each login, the newest first.  With
+such an item, each login is recorded in `state_dir/callers` (the latest
+200); the caller ID is not, since every caller sees the list.
+
+### More items
+
+The end of [modemmenu.conf.sample](modemmenu.conf.sample) has items to
+copy, each needing its program:
+
+| item | program |
+|---|---|
+| upload | `rz -b -R -E` (lrzsz): ZMODEM uploads into the caller's `~/uploads`, binary, restricted, renaming rather than overwriting |
+| kermit | `kermit -Y -x` (C-Kermit): a Kermit server in the caller's files; their terminal's Kermit GETs and SENDs |
+| web | `lynx -anonymous`: the web as text, without shell or saving |
+| mail, news | `mutt`, `tin -r` |
+| chat | `irssi` on your own IRC server |
+| gopher | lynx on Gopherspace, quick even at 2400 bit/s |
+| callers | the last callers (above) |
+
+They run as the caller (`run_as = {user}`, so modemmenu as root) with a
+cooked terminal (`tty = sane`), and return to the menu.
 
 ### What the selection gets
 
@@ -525,7 +564,10 @@ tested in the users file (other lines and notes kept) and in SQLite, and
 on a call: a wrong current password, the rules for the new one, the
 change, the next login with it, and a guest.  The auth socket is
 tested: right and wrong passwords, unknown, malformed and locked users,
-`allow_users` and its settings.  The system backend's uid, root and
+`allow_users` and its settings.  The time warning is tested on a call
+(and its absence with `time_warning = no`), the last callers list
+(kept to 200, the newest first, no caller ID) on two calls, and Active
+Directory's password encoding.  The system backend's uid, root and
 group rules are tested with PAM replaced.
 
 Two more tests run when their servers are given:
@@ -536,4 +578,7 @@ Two more tests run when their servers are given:
 - `MODEMMENU_TEST_LDAP=ldap://host:port make test`: the LDAP backend,
   against a server with `uid=lduser,ou=people,dc=example,dc=com`
   (password `ldpass`), and that password changed and back (the server
-  must let users write their own `userPassword`).
+  must let users write their own `userPassword`); with
+  `ou=groups,dc=example,dc=com` holding `cn=sysops` (`groupOfNames`,
+  `member` lduser), `cn=dialup` (`posixGroup`, `memberUid` lduser) and
+  `cn=other` (without), LDAP groups too.

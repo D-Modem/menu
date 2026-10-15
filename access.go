@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"strconv"
@@ -79,6 +80,10 @@ type limitSettings struct {
 	timeLimit  time.Duration // a call, from the login
 	dailyLimit time.Duration // a user's calls in a day
 	stateDir   string        // where the daily use is kept
+	// written to the line this long before the deadline, in a selection
+	// with time_warning
+	warning        time.Duration
+	warningMessage string
 }
 
 func loadAccess(c *ini, s *settings) error {
@@ -91,6 +96,11 @@ func loadAccess(c *ini, s *settings) error {
 		return err
 	}
 	s.limits.stateDir = g.get("state_dir", "/var/lib/modemmenu")
+	if s.limits.warning, err = g.duration("time_warning", 2*time.Minute); err != nil {
+		return err
+	}
+	s.limits.warningMessage = unescape(g.get("time_warning_message",
+		`\r\n\r\n*** {time_left} minute(s) left in this call ***\r\n`))
 	if s.limits.dailyLimit > 0 && !strings.HasPrefix(s.limits.stateDir, "/") {
 		return fmt.Errorf("[general] state_dir: %q (an absolute path)", s.limits.stateDir)
 	}
@@ -172,7 +182,7 @@ func checkAccess(s *settings) error {
 	}
 	for _, it := range s.items {
 		for _, g := range it.access.groups {
-			if _, ok := s.groups[g]; !ok && !contains(s.auth, "system") && !contains(s.auth, "pam") {
+			if _, ok := s.groups[g]; !ok && !contains(s.auth, "system") && !contains(s.auth, "pam") && !s.ldapGroups() {
 				return fmt.Errorf("[item %s] groups: no %s in [groups]", it.name, g)
 			}
 		}
@@ -229,21 +239,43 @@ func (s *settings) numberRule(number string) *numberRule {
 	return nil
 }
 
-// inGroup: the session's user is a member of group, by [groups], or for a
-// system account (auth = system) by the system's groups
+// inGroup: the session's user is a member of group, by [groups]; for a
+// system account (auth = system) by the system's groups; for an LDAP one
+// by the directory's (with [ldap] group_base).  The backends' answers are
+// kept for the call.
 func (s *settings) inGroup(sess *session, group string) bool {
 	if contains(s.groups[group], sess.User) {
 		return true
 	}
-	if sess.Auth != "system" && sess.Auth != "upstream:system" {
+	auth := strings.TrimPrefix(sess.Auth, "upstream:")
+	if auth != "system" && auth != "ldap" {
 		return false
 	}
-	acct, err := lookupNSS(sess.User)
-	if err != nil {
-		return false
+	if in, ok := sess.groupCache[group]; ok {
+		return in
 	}
-	in, err := inGroupsNSS(acct, []string{group})
-	return err == nil && in
+	var in bool
+	var err error
+	if auth == "system" {
+		var acct *account
+		if acct, err = lookupNSS(sess.User); err == nil {
+			in, err = inGroupsNSS(acct, []string{group})
+		}
+	} else {
+		for _, b := range s.backends {
+			if la, ok := b.(*ldapAuth); ok {
+				in, err = la.memberOf(sess.User, sess.Password, group)
+			}
+		}
+	}
+	if err != nil && !errors.Is(err, errNoUser) {
+		logf("groups: %s in %s: %v", sess.User, group, err)
+	}
+	if sess.groupCache == nil {
+		sess.groupCache = map[string]bool{}
+	}
+	sess.groupCache[group] = in && err == nil
+	return sess.groupCache[group]
 }
 
 // allows: whether the session may see and use the item
@@ -283,4 +315,14 @@ func (s *settings) visible(sess *session) []*menuItem {
 		}
 	}
 	return items
+}
+
+// ldapGroups: whether the LDAP backend has groups ([ldap] group_base)
+func (s *settings) ldapGroups() bool {
+	for _, b := range s.backends {
+		if la, ok := b.(*ldapAuth); ok && la.groupBase != "" {
+			return true
+		}
+	}
+	return false
 }

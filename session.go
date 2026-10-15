@@ -26,6 +26,8 @@ type session struct {
 	Connected time.Time `json:"connected"`
 	Selection string    `json:"selection"`
 	TimeLeft  string    `json:"time_left"` // whole minutes; "": no limit
+
+	groupCache map[string]bool // the backends' group answers, for the call
 }
 
 // newSession from app_dmodem's environment (DMODEM_RATE "tx/rx",

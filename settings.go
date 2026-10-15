@@ -51,7 +51,9 @@ type menuItem struct {
 	after       string // hangup, menu
 	timeout     time.Duration
 	access      itemAccess
-	minPassword int // mode = passwd
+	minPassword int  // mode = passwd
+	timeWarning bool // the time_warning is written on the line
+	count       int  // mode = callers: how many
 }
 
 // serverSettings: [server], for modemmenu -serve
@@ -252,12 +254,18 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 	it.runAs = sec.get("run_as", "")
 	it.tty = strings.ToLower(sec.get("tty", "raw"))
 	defAfter := "hangup"
-	if strings.EqualFold(sec.get("mode", ""), "passwd") {
+	if m := strings.ToLower(sec.get("mode", "")); m == "passwd" || m == "callers" {
 		// a password changed is no reason to hang up
 		defAfter = "menu"
 	}
 	it.after = strings.ToLower(sec.get("after", defAfter))
 	if it.minPassword, err = sec.int("min_password", 8); err != nil {
+		return nil, err
+	}
+	if it.timeWarning, err = sec.bool("time_warning", true); err != nil {
+		return nil, err
+	}
+	if it.count, err = sec.int("count", 10); err != nil {
 		return nil, err
 	}
 	if it.password, err = sec.bool("pass_password", true); err != nil {
@@ -284,7 +292,7 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 		return nil, err
 	}
 	switch it.mode {
-	case "passwd":
+	case "passwd", "callers":
 		// built in: no command, no server
 	case "exec":
 		if it.command == "" {
@@ -301,7 +309,7 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 			return nil, fmt.Errorf("[item %s] path: %q (an absolute path)", name, it.path)
 		}
 	default:
-		return nil, fmt.Errorf("[item %s] mode: %q (exec, tcp, unix, telnet, rlogin or passwd)", name, it.mode)
+		return nil, fmt.Errorf("[item %s] mode: %q (exec, tcp, unix, telnet, rlogin, passwd or callers)", name, it.mode)
 	}
 	if it.tty != "raw" && it.tty != "sane" {
 		return nil, fmt.Errorf("[item %s] tty: %q (raw or sane)", name, it.tty)
