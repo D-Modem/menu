@@ -380,9 +380,14 @@ connection is closed).  `{time_left}` (whole minutes, empty without a
 limit) shows what is left, e.g. in `[menu] prompt`, and the selection
 gets it as `MODEM_TIME_LEFT`.
 
-`time_warning` (2 minutes) before the limit, `time_warning_message` is
-written on the line in the middle of what a running selection shows,
-so that a caller in a BBS or a shell has time to finish.  An item with
+Before the limit, `time_warning_message` is written on the line in the
+middle of what a running selection shows, so that a caller in a BBS or
+a shell has time to finish: once for each of `time_warning`'s times
+(`5m 1m`: at 5 minutes and at 1 minute left; one time, 2 minutes, by
+default; `0` for none).  A selection started with less time left gets
+only the warnings still ahead.  In the message, `{time_left}` is the
+minutes left and `{seconds_left}` the seconds; `\a` beeps the caller's
+terminal.  An item with
 `time_warning = no` gets none: PPP should not (text between its frames),
 and the sample's PPP item says so.
 
@@ -564,8 +569,8 @@ tested in the users file (other lines and notes kept) and in SQLite, and
 on a call: a wrong current password, the rules for the new one, the
 change, the next login with it, and a guest.  The auth socket is
 tested: right and wrong passwords, unknown, malformed and locked users,
-`allow_users` and its settings.  The time warning is tested on a call
-(and its absence with `time_warning = no`), the last callers list
+`allow_users` and its settings.  The time warnings are tested on a call
+(two, the longer first, and none with `time_warning = no`), the last callers list
 (kept to 200, the newest first, no caller ID) on two calls, and Active
 Directory's password encoding.  The system backend's uid, root and
 group rules are tested with PAM replaced.

@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -160,6 +161,35 @@ func stripComment(v string) string {
 		b.WriteByte(c)
 	}
 	return b.String()
+}
+
+// durations: a list of durations ("5m 1m", "300, 60"), the longest
+// first, each once; "0" or "none" for none
+func (s *section) durations(key, def string) ([]time.Duration, error) {
+	v := strings.TrimSpace(s.get(key, def))
+	if v == "" || v == "0" || strings.EqualFold(v, "none") {
+		return nil, nil
+	}
+	var out []time.Duration
+	for _, f := range fields(v) {
+		one := &section{name: s.name, vals: map[string]string{key: f}}
+		d, err := one.duration(key, 0)
+		if err != nil {
+			return nil, err
+		}
+		if d <= 0 {
+			return nil, fmt.Errorf("[%s] %s: %q is not a time before the limit", s.name, key, f)
+		}
+		dup := false
+		for _, o := range out {
+			dup = dup || o == d
+		}
+		if !dup {
+			out = append(out, d)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] > out[j] })
+	return out, nil
 }
 
 // unescape turns \r \n \t \e \\ and \xHH of a configured string into

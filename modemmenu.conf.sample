@@ -79,9 +79,11 @@ user_pattern = ^[A-Za-z0-9][A-Za-z0-9._@-]{0,63}$
 time_limit = 0
 daily_limit = 0
 state_dir = /var/lib/modemmenu
-; this long before the limit, the message is written on the line in the
-; middle of a running selection (not one with time_warning = no); 0: none
-time_warning = 2m
+; these long before the limit, the message is written on the line in the
+; middle of a running selection (not one with time_warning = no), once
+; for each: 5m 1m warns at 5 minutes and at 1 minute left; 0: none.
+; {time_left} is in minutes, {seconds_left} in seconds; \a beeps
+time_warning = 5m 1m
 time_warning_message = "\r\n\r\n*** {time_left} minute(s) left in this call ***\r\n"
 
 ; groups of users for the items' groups = (members of system groups count

@@ -83,9 +83,9 @@ type limitSettings struct {
 	timeLimit  time.Duration // a call, from the login
 	dailyLimit time.Duration // a user's calls in a day
 	stateDir   string        // where the daily use is kept
-	// written to the line this long before the deadline, in a selection
-	// with time_warning
-	warning        time.Duration
+	// written to the line these long before the deadline, in a selection
+	// with time_warning; the longest first
+	warnings       []time.Duration
 	warningMessage string
 }
 
@@ -99,7 +99,7 @@ func loadAccess(c *ini, s *settings) error {
 		return err
 	}
 	s.limits.stateDir = g.get("state_dir", "/var/lib/modemmenu")
-	if s.limits.warning, err = g.duration("time_warning", 2*time.Minute); err != nil {
+	if s.limits.warnings, err = g.durations("time_warning", "2m"); err != nil {
 		return err
 	}
 	s.limits.warningMessage = unescape(g.get("time_warning_message",

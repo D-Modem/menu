@@ -24,15 +24,19 @@ import (
 // launch the selection: its error, or nil when it ended by itself;
 // errTimeLimit when deadline (if not zero) ended it
 func launch(t *term, cfg *settings, it *menuItem, s *session, deadline time.Time, logf func(string, ...any)) error {
-	// the time_warning before the deadline, on the line in the middle of
-	// what the selection says
-	if warn := cfg.limits.warning; warn > 0 && it.timeWarning && !deadline.IsZero() &&
-		time.Until(deadline) > warn {
+	// each time_warning before the deadline (those still ahead), on the
+	// line in the middle of what the selection says
+	for _, warn := range cfg.limits.warnings {
+		if !it.timeWarning || deadline.IsZero() || time.Until(deadline) <= warn {
+			continue
+		}
 		timer := time.AfterFunc(time.Until(deadline)-warn, func() {
+			left := time.Until(deadline)
 			v := s.vars(false)
-			v["time_left"] = strconv.Itoa(int((time.Until(deadline) + 30*time.Second) / time.Minute))
+			v["time_left"] = strconv.Itoa(int((left + 30*time.Second) / time.Minute))
+			v["seconds_left"] = strconv.Itoa(int((left + 500*time.Millisecond) / time.Second))
 			t.write(expand(cfg.limits.warningMessage, v, nil))
-			logf("%s: time warning user=%s", it.name, s.User)
+			logf("%s: time warning user=%s left=%v", it.name, s.User, left.Round(time.Second))
 		})
 		defer timer.Stop()
 	}

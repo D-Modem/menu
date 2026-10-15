@@ -403,9 +403,9 @@ func TestTimeWarning(t *testing.T) {
 [general]
 log = none
 auth = file
-time_limit = 4s
-time_warning = 2s
-time_warning_message = "\r\n*** {time_left} minute(s) left, {user} ***\r\n"
+time_limit = 5s
+time_warning = 1s, 3s
+time_warning_message = "\r\n*** {seconds_left} s left, {user} ***\r\n"
 [file]
 path = %s
 [item nap]
@@ -426,9 +426,41 @@ command = exec sleep 30
 		cl.expect("Selection: ")
 		cl.send(c.item + "\r")
 		got := cl.expect("Your time is up.")
-		if warned := strings.Contains(got, "*** 0 minute(s) left, bob ***"); warned != c.warn {
+		// the longest first, each once
+		first, second := strings.Index(got, "*** 3 s left, bob ***"), strings.Index(got, "*** 1 s left, bob ***")
+		if warned := first >= 0 && second > first && strings.Count(got, "s left, bob") == 2; warned != c.warn {
 			t.Errorf("%s: warned %v, want %v:\n%q", c.item, warned, c.warn, got)
 		}
+		if !c.warn && strings.Contains(got, "s left") {
+			t.Errorf("%s: a warning:\n%q", c.item, got)
+		}
 		waitExit(t, cmd)
+	}
+}
+
+func TestDurations(t *testing.T) {
+	for in, want := range map[string]string{
+		"5m 1m":    "[5m0s 1m0s]",
+		"60, 300":  "[5m0s 1m0s]",
+		"1m 5m 1m": "[5m0s 1m0s]",
+		"90s":      "[1m30s]",
+		"0":        "[]",
+		"none":     "[]",
+		"":         "[]",
+	} {
+		s := &section{name: "general", vals: map[string]string{"time_warning": in}}
+		got, err := s.durations("time_warning", "2m")
+		if err != nil || fmt.Sprint(got) != want {
+			t.Errorf("%q: %v %v, want %s", in, got, err, want)
+		}
+	}
+	for _, bad := range []string{"5m soon", "-1m", "1m 0"} {
+		s := &section{name: "general", vals: map[string]string{"time_warning": bad}}
+		if _, err := s.durations("time_warning", "2m"); err == nil {
+			t.Errorf("%q: no error", bad)
+		}
+	}
+	if got, _ := (&section{name: "general", vals: map[string]string{}}).durations("time_warning", "2m"); fmt.Sprint(got) != "[2m0s]" {
+		t.Errorf("the default: %v", got)
 	}
 }
