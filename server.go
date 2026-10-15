@@ -107,6 +107,13 @@ func headerEnv(h map[string]string, trust bool) []string {
 			env = append(env, d+"="+v)
 		}
 	}
+	// the time an upstream menu leaves the caller (more exact in seconds),
+	// a limit here too, trusted or not: it can only shorten the call
+	if v := h["MODEM_SECONDS_LEFT"]; v != "" {
+		env = append(env, "MODEMMENU_UPSTREAM_SECONDS_LEFT="+v)
+	} else if v, err := strconv.Atoi(h["MODEM_TIME_LEFT"]); err == nil {
+		env = append(env, "MODEMMENU_UPSTREAM_SECONDS_LEFT="+strconv.Itoa(v*60))
+	}
 	if trust && h["MODEM_USER"] != "" {
 		env = append(env, "MODEMMENU_UPSTREAM_USER="+h["MODEM_USER"],
 			"MODEMMENU_UPSTREAM_PASSWORD="+h["MODEM_PASSWORD"],
@@ -354,6 +361,10 @@ func openPty() (*os.File, *os.File, error) {
 // only then); the variables are removed either way, so that no selection
 // sees them
 func upstream(sess *session, trusted bool) bool {
+	if secs, err := strconv.Atoi(os.Getenv("MODEMMENU_UPSTREAM_SECONDS_LEFT")); err == nil && secs >= 0 {
+		sess.upstreamDeadline = time.Now().Add(time.Duration(secs) * time.Second)
+	}
+	os.Unsetenv("MODEMMENU_UPSTREAM_SECONDS_LEFT")
 	u := os.Getenv("MODEMMENU_UPSTREAM_USER")
 	pw := os.Getenv("MODEMMENU_UPSTREAM_PASSWORD")
 	auth := os.Getenv("MODEMMENU_UPSTREAM_AUTH")

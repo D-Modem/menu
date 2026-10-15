@@ -391,6 +391,57 @@ terminal.  An item with
 `time_warning = no` gets none: PPP should not (text between its frames),
 and the sample's PPP item says so.
 
+### Drop files for doors
+
+BBS doors (games and utilities written for BBSs) learn who called, on
+what line and for how long from a drop file.  An exec item with
+`dropfile = door32.sys door.sys` writes those files before its program
+starts and removes them after:
+
+| file | what |
+|---|---|
+| `DOOR32.SYS` | 11 lines: comm type and handle, rate, BBS name, user number, name, alias, security level, **time left in minutes**, emulation, node |
+| `DOOR.SYS` | the 52-line GAP format: port, rate, node, name, phone (the caller ID), security level, **seconds and minutes left**, graphics mode, user number, sysop, ... |
+
+```
+[dropfile]
+bbs_name = My BBS
+sysop = Alice
+security = 10
+
+[item lord]
+key = L
+label = Legend of the Red Dragon
+dropfile = door.sys
+dropfile_dir = /srv/doors/lord/node{node}
+security = 20
+tty = sane
+command = cd /srv/doors/lord && exec dosemu -dumb -E "lord.bat $MODEM_NODE"
+after = menu
+```
+
+(The DOSEMU command line is an example: it depends on your DOSEMU's
+version and setup.)
+
+- **Node:** each door run gets a node of its own, the first free one of
+  `[dropfile] max_nodes`, held (a lock in `state_dir/nodes`) until the
+  door ends, so that doors with shared data see callers on different
+  nodes even under `modemmenu -serve`.
+- **User number:** each user gets a number the first time
+  (`state_dir/usernumbers`), the same one ever after, for doors that
+  keep per-user records by it.
+- **Directory:** `dropfile_dir` (with `{node}`, `{user}`...), or a new
+  directory each time. Commands get it as `{dropfile_dir}` and
+  `MODEM_DROPFILE_DIR`, and the node as `{node}` and `MODEM_NODE`.
+- **Time left:** the session's at the start (a day, without a limit);
+  the door's own clock counts down from there.
+- **Password:** not in the files. Doors do not need it.
+
+The files have DOS line ends, as doors expect.  `comm_type`,
+`comm_handle` and `com_port` say how the door reaches the caller: a
+door on Linux uses its stdin and stdout (the caller's line); one under
+DOSEMU uses the port DOSEMU maps to them.
+
 ### Last callers
 
 A `mode = callers` item shows the last callers (`count`, 10): the time,
@@ -432,6 +483,8 @@ cooked terminal (`tty = sane`), and return to the menu.
 | `{channel}`, `{profile}` | `MODEM_CHANNEL`, `MODEM_PROFILE` | app_dmodem's channel and profile |
 | `{selection}` | `MODEM_SELECTION` | the item chosen |
 | `{time_left}` | `MODEM_TIME_LEFT` | whole minutes left, empty without a limit |
+| `{seconds_left}` | `MODEM_SECONDS_LEFT` | the same in seconds |
+| `{node}`, `{dropfile_dir}` | `MODEM_NODE`, `MODEM_DROPFILE_DIR` | a door's node and its drop files' directory (`dropfile =` items) |
 
 How it reaches each kind of selection:
 
@@ -453,7 +506,13 @@ How it reaches each kind of selection:
   protocol on a unix socket.
 - **header** (`header = yes`, on any of the socket kinds): the session
   first, `MODEM_*` `NAME=value` lines and an empty line (the password
-  only with `pass_password`), before `send` or the protocol.
+  only with `pass_password`), before `send` or the protocol.  It has
+  the time left (`MODEM_TIME_LEFT`, `MODEM_SECONDS_LEFT`): a downstream
+  `modemmenu -serve` keeps that as a limit of its own (trusted or not:
+  it can only shorten the call), so that a caller does not get a new
+  allowance by going from one menu to another.
+- **drop files** (`dropfile = door32.sys door.sys`, exec items): what a
+  BBS door reads of its caller, below.
 
 `after = menu` returns to the menu when the selection ends, `after =
 hangup` (the default) hangs up.

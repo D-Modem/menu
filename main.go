@@ -214,7 +214,7 @@ func run(t *term, s *settings, sess *session) int {
 			logf("callers: %v", err)
 		}
 	}
-	sess.TimeLeft = lim.timeLeft(time.Now())
+	lim.mark(sess, time.Now())
 
 	t.write(expand(s.welcome, sess.vars(false), nil))
 	t.write(motd(s, sess))
@@ -326,7 +326,7 @@ func menu(t *term, s *settings, sess *session, lim *limiter, first *menuItem) er
 	items := s.visible(sess)
 	redraw := first == nil
 	for {
-		sess.TimeLeft = lim.timeLeft(time.Now())
+		lim.mark(sess, time.Now())
 		left, limited := lim.left(time.Now())
 		if limited && left <= 0 {
 			return errTimeLimit
@@ -397,7 +397,7 @@ func menu(t *term, s *settings, sess *session, lim *limiter, first *menuItem) er
 		// is read ahead
 
 		sess.Selection = it.name
-		sess.TimeLeft = lim.timeLeft(time.Now())
+		lim.mark(sess, time.Now())
 		logf("start %s user=%s mode=%s", it.name, sess.User, it.mode)
 		err := launch(t, s, it, sess, lim.deadline, logf)
 		if errors.Is(err, errHangup) || terminated.Load() {

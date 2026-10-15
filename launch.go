@@ -46,7 +46,7 @@ func launch(t *term, cfg *settings, it *menuItem, s *session, deadline time.Time
 	case "callers":
 		return callersItem(t, cfg, it)
 	case "exec":
-		return runExec(t, it, s, deadline, logf)
+		return runExec(t, cfg, it, s, deadline, logf)
 	default:
 		return runTCP(t, it, s, deadline)
 	}
@@ -55,11 +55,8 @@ func launch(t *term, cfg *settings, it *menuItem, s *session, deadline time.Time
 // runExec: the command under /bin/sh -c on the caller's line, the
 // session in MODEM_* of its environment, {placeholders} of the command
 // as quoted shell words
-func runExec(t *term, it *menuItem, s *session, deadline time.Time, logf func(string, ...any)) error {
+func runExec(t *term, cfg *settings, it *menuItem, s *session, deadline time.Time, logf func(string, ...any)) error {
 	v := s.vars(it.password)
-	cmd := exec.Command("/bin/sh", "-c", expand(it.command, v, shellQuote))
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stdout
-
 	env := make([]string, 0, 32)
 	for _, e := range os.Environ() {
 		if !strings.HasPrefix(e, "MODEM_") {
@@ -69,25 +66,43 @@ func runExec(t *term, it *menuItem, s *session, deadline time.Time, logf func(st
 	env = append(env, s.environ(it.password)...)
 
 	uid, gid := -1, -1
+	var cred *syscall.Credential
+	var home string
 	if it.runAs != "" {
 		name := expand(it.runAs, v, nil)
 		u, err := user.Lookup(name)
 		if err != nil {
 			return fmt.Errorf("run_as %s: %v", name, err)
 		}
-		cred, err := credential(u)
-		if err != nil {
+		if cred, err = credential(u); err != nil {
 			return fmt.Errorf("run_as %s: %v", name, err)
 		}
 		uid, gid = int(cred.Uid), int(cred.Gid)
-		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: cred}
-		cmd.Dir = u.HomeDir
+		home = u.HomeDir
 		env = setEnv(env, "HOME", u.HomeDir)
 		env = setEnv(env, "USER", u.Username)
 		env = setEnv(env, "LOGNAME", u.Username)
 		if sh := loginShell(u.Username); sh != "" {
 			env = setEnv(env, "SHELL", sh)
 		}
+	}
+	// the drop files of a door: the node, their directory and the files,
+	// for {node} and {dropfile_dir} in the command too
+	if len(it.dropfiles) > 0 {
+		df, err := writeDropfiles(cfg, it, s, deadline, uid, gid)
+		if err != nil {
+			return fmt.Errorf("drop files: %v", err)
+		}
+		defer df.close()
+		v["node"], v["dropfile_dir"] = strconv.Itoa(df.node), df.dir
+		env = append(env, "MODEM_NODE="+v["node"], "MODEM_DROPFILE_DIR="+df.dir)
+	}
+
+	cmd := exec.Command("/bin/sh", "-c", expand(it.command, v, shellQuote))
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stdout
+	if cred != nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: cred}
+		cmd.Dir = home
 	}
 	if it.sessionFile {
 		path, err := s.writeFile(it.password, uid, gid)

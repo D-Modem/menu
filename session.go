@@ -29,6 +29,10 @@ type session struct {
 	Connected time.Time `json:"connected"`
 	Selection string    `json:"selection"`
 	TimeLeft  string    `json:"time_left"` // whole minutes; "": no limit
+	// the same in seconds
+	SecondsLeft string `json:"seconds_left"`
+	// an upstream menu's deadline, from its session header
+	upstreamDeadline time.Time
 
 	groupCache map[string]bool // the backends' group answers, for the call
 }
@@ -60,23 +64,24 @@ func newSession(rate, dialed, callerID string, now time.Time) *session {
 // vars: the placeholders of templates and the environment, by name
 func (s *session) vars(withPassword bool) map[string]string {
 	v := map[string]string{
-		"user":      s.User,
-		"auth":      s.Auth,
-		"dialed":    s.Dialed,
-		"callerid":  s.CallerID,
-		"baud":      s.Baud,
-		"rate":      s.Rate,
-		"tx_rate":   s.TxRate,
-		"rx_rate":   s.RxRate,
-		"channel":   s.Channel,
-		"profile":   s.Profile,
-		"selection": s.Selection,
-		"time_left": s.TimeLeft,
-		"date":      s.Connected.Format("2006-01-02"),
-		"time":      s.Connected.Format("15:04:05"),
-		"datetime":  s.Connected.Format(time.RFC3339),
-		"epoch":     strconv.FormatInt(s.Connected.Unix(), 10),
-		"password":  "",
+		"user":         s.User,
+		"auth":         s.Auth,
+		"dialed":       s.Dialed,
+		"callerid":     s.CallerID,
+		"baud":         s.Baud,
+		"rate":         s.Rate,
+		"tx_rate":      s.TxRate,
+		"rx_rate":      s.RxRate,
+		"channel":      s.Channel,
+		"profile":      s.Profile,
+		"selection":    s.Selection,
+		"time_left":    s.TimeLeft,
+		"seconds_left": s.SecondsLeft,
+		"date":         s.Connected.Format("2006-01-02"),
+		"time":         s.Connected.Format("15:04:05"),
+		"datetime":     s.Connected.Format(time.RFC3339),
+		"epoch":        strconv.FormatInt(s.Connected.Unix(), 10),
+		"password":     "",
 	}
 	if withPassword {
 		v["password"] = s.Password

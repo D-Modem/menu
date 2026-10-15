@@ -234,6 +234,25 @@ max_sessions = 32
 ; requests at once
 ;max_clients = 16
 
+; drop files for doors (an exec item's dropfile =): what they say of the
+; BBS, and how the door reaches the caller
+[dropfile]
+bbs_name = modemmenu
+sysop = Sysop
+; the callers' security level (an item's security = overrides it)
+security = 10
+; ansi or ascii
+emulation = ansi
+; DOOR32.SYS: 0 local, 1 serial, 2 telnet, and its handle; DOOR.SYS's port
+; (COM0: is local).  A door on Linux talks on its stdin and stdout, which
+; is the caller's line, whatever these say; doors under DOSEMU want the
+; port DOSEMU gives them
+comm_type = 2
+comm_handle = 0
+com_port = COM1:
+; doors running at once, each on a node of its own (state_dir/nodes)
+max_nodes = 64
+
 [menu]
 title = "\r\nMain menu\r\n"
 prompt = "\r\nSelection: "
@@ -286,6 +305,17 @@ hotkeys = no
 ;   min_baud = 9600      the connect rate at least this (unknown: no)
 ;   callerids = 555*     the caller ID matching one of these
 ;   guest = no           yes: guests see it too
+;
+; A door (mode = exec) and its drop files:
+;   dropfile = door32.sys door.sys
+;                        written before the program starts, removed after,
+;                        with the user, the rate and the time left; the
+;                        node and the directory are {node} and
+;                        {dropfile_dir} in command, MODEM_NODE and
+;                        MODEM_DROPFILE_DIR in the environment
+;   dropfile_dir =       where (e.g. /srv/doors/node{node}); default: a new
+;                        directory each time
+;   security = 0         the drop files' security level ([dropfile]'s if 0)
 
 ; A BBS by rlogin: Synchronet and Mystic log the caller in with the user
 ; name as the server user and the password as the client user
@@ -351,6 +381,17 @@ after = menu
 ; run_as = {user} (modemmenu as root) keeps callers in their own accounts.
 
 ; who called last
+; a DOS door under DOSEMU (its command line depends on your DOSEMU's
+; version and setup: an example to adapt)
+;[item lord]
+;key = L
+;label = Legend of the Red Dragon
+;dropfile = door.sys
+;dropfile_dir = /srv/doors/lord/node{node}
+;tty = sane
+;command = cd /srv/doors/lord && exec dosemu -dumb -E "lord.bat $MODEM_NODE"
+;after = menu
+
 ;[item callers]
 ;key = LC
 ;label = Last callers

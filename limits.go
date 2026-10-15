@@ -103,6 +103,10 @@ func newLimiter(s *settings, sess *session, now time.Time) (*limiter, error) {
 	if limit > 0 {
 		l.deadline = now.Add(limit)
 	}
+	// an upstream menu's limit (its session header) holds here too
+	if u := sess.upstreamDeadline; !u.IsZero() && (l.deadline.IsZero() || u.Before(l.deadline)) {
+		l.deadline = u
+	}
 	if l.daily() {
 		used, err := usedToday(s.limits.stateDir, sess.User, l.day)
 		if err != nil {
@@ -145,6 +149,17 @@ func (l *limiter) timeLeft(now time.Time) string {
 		left = 0
 	}
 	return strconv.Itoa(int(left / time.Minute))
+}
+
+// mark: the session's {time_left} and {seconds_left} as of now
+func (l *limiter) mark(sess *session, now time.Time) {
+	sess.TimeLeft, sess.SecondsLeft = l.timeLeft(now), ""
+	if left, ok := l.left(now); ok {
+		if left < 0 {
+			left = 0
+		}
+		sess.SecondsLeft = strconv.Itoa(int(left / time.Second))
+	}
 }
 
 // done: the session's time into the day's use, once (the session's end,

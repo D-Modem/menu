@@ -54,9 +54,12 @@ type menuItem struct {
 	after       string // hangup, menu
 	timeout     time.Duration
 	access      itemAccess
-	minPassword int  // mode = passwd
-	timeWarning bool // the time_warning is written on the line
-	count       int  // mode = callers: how many
+	minPassword int      // mode = passwd
+	timeWarning bool     // the time_warning is written on the line
+	dropfiles   []string // DOOR32.SYS, DOOR.SYS
+	dropfileDir string   // where ("": a new directory each time)
+	security    int      // the drop files' security level (0: [dropfile]'s)
+	count       int      // mode = callers: how many
 }
 
 // serverSettings: [server], for modemmenu -serve
@@ -78,6 +81,7 @@ type settings struct {
 	signup     signupSettings
 	callerID   callerIDSettings
 	limits     limitSettings
+	dropfile   dropfileSettings
 	authd      *authdSettings // nil: no auth socket
 	menuTitle  string
 	menuPrompt string
@@ -160,6 +164,9 @@ func loadSettings(path string) (*settings, error) {
 		return nil, err
 	}
 	if err := loadAccess(c, s); err != nil {
+		return nil, err
+	}
+	if s.dropfile, err = loadDropfile(c.section("dropfile")); err != nil {
 		return nil, err
 	}
 	if s.authd, err = loadAuthd(c.section("authd")); err != nil {
@@ -270,6 +277,16 @@ func loadItem(name string, sec *section) (*menuItem, error) {
 	}
 	if it.count, err = sec.int("count", 10); err != nil {
 		return nil, err
+	}
+	if it.dropfiles, err = loadItemDropfiles(name, sec); err != nil {
+		return nil, err
+	}
+	it.dropfileDir = sec.get("dropfile_dir", "")
+	if it.security, err = sec.int("security", 0); err != nil {
+		return nil, err
+	}
+	if len(it.dropfiles) > 0 && strings.ToLower(sec.get("mode", "exec")) != "exec" {
+		return nil, fmt.Errorf("[item %s] dropfile is for mode = exec", name)
 	}
 	if it.password, err = sec.bool("pass_password", true); err != nil {
 		return nil, err
