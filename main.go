@@ -41,6 +41,7 @@ func main() {
 	serveFlag := flag.Bool("serve", false, "serve sessions on the [server] listen socket")
 	listenAt := flag.String("listen", "", "with -serve: listen on this unix socket `path` (or tcp:host:port) instead of [server] listen")
 	upstreamFlag := flag.Bool("upstream", false, "a session of -serve with trust_user (internal)")
+	authdFlag := flag.Bool("authd", false, "answer the [authd] auth socket alone (with -serve it is answered too)")
 	flag.Parse()
 
 	if *hash {
@@ -57,6 +58,9 @@ func main() {
 	}
 	if err := openLog(s.log); err != nil {
 		fmt.Fprintln(os.Stderr, "modemmenu: log:", err)
+	}
+	if *authdFlag {
+		os.Exit(authd(s))
 	}
 	if *serveFlag {
 		if *listenAt != "" {

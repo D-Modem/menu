@@ -206,6 +206,18 @@ trust_user = no
 ; connections at once; more are told the lines are busy
 max_sessions = 32
 
+; The auth socket: the BBS's other logins (telnet, SSH, the web) ask the
+; backends above for a user's password through it, so that it is the same
+; one.  Answered by -serve, or by -authd alone.  Who may ask: socket_mode
+; and socket_group, and allow_users (the peer's user)
+;[authd]
+;listen = /run/modemmenu/auth.sock
+;socket_mode = 0660
+;socket_group = bbs
+;allow_users = bbs
+; requests at once
+;max_clients = 16
+
 [menu]
 title = "\r\nMain menu\r\n"
 prompt = "\r\nSelection: "

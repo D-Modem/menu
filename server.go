@@ -127,6 +127,15 @@ func serve(s *settings, config string) int {
 		return 1
 	}
 	logf("serving on %s", srv.listen)
+	var authLn net.Listener
+	if s.authd != nil {
+		if authLn, err = listenAuth(s.authd); err != nil {
+			ln.Close()
+			fmt.Fprintln(os.Stderr, "modemmenu:", err)
+			return 1
+		}
+		go serveAuth(s, authLn)
+	}
 
 	var (
 		mu       sync.Mutex
@@ -139,6 +148,9 @@ func serve(s *settings, config string) int {
 		sig := <-ch
 		logf("%v: stopping", sig)
 		ln.Close()
+		if authLn != nil {
+			authLn.Close()
+		}
 	}()
 
 	slots := make(chan struct{}, srv.maxSessions)

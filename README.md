@@ -444,6 +444,37 @@ socket_mode = 0600
 menu's user (`socket_mode`, `socket_group`).  Without it, the other menu
 asks the caller to log in again.
 
+### The same password elsewhere: the auth socket
+
+Callers who log in here reach the BBS already logged in.  The same people
+logging in to the BBS another way (telnet, SSH, its web forum) can use
+the same password: the BBS asks modemmenu's backends through a unix
+socket.
+
+```
+[authd]
+listen = /run/modemmenu/auth.sock
+socket_mode = 0660
+socket_group = bbs
+; and, closer: only these users' programs (by the peer's uid)
+allow_users = bbs
+```
+
+`modemmenu -serve` answers it as well as its sessions; `modemmenu -authd`
+answers it alone (modemmenu-authd.service.sample).  One request a
+connection, a JSON line each way:
+
+```
+{"user": "alice", "password": "..."}
+{"ok": true, "auth": "ldap"}          or          {"ok": false, "error": "denied"}
+```
+
+The backends are asked as at the login prompt, `user_pattern` kept; a
+refusal comes after `fail_delay`.  Accounts locked in the users file (a
+signup the sysop has not unlocked) are refused here too, and a password
+changed from the menu (`mode = passwd`) is the one asked for at once.  The BBS's side: its `[modemmenu]
+auth_socket` (docs/wiki/Modem-Callers.md there).
+
 ## Security notes
 
 - Asterisk usually runs as its own user: the users file (and
@@ -468,6 +499,10 @@ asks the caller to log in again.
   connect gets a login prompt, and with `trust_user` a login as whoever
   they name.  Keep `socket_mode` and `socket_group` to Asterisk or the
   front menu.
+- The auth socket answers whether a password is right: whoever can
+  connect can guess passwords with it, each wrong one `fail_delay` late.
+  Keep it to the BBS's user (`socket_mode` 0660 or 0600, `socket_group`,
+  `allow_users`); a mode open to others is refused, and so is TCP.
 - The log (syslog's auth facility by default) gets logins, failures and
   selections, never passwords.  It is never the line: the caller would
   see it.
@@ -488,8 +523,10 @@ pending), refused and known numbers, and a selection hung up at the
 day's limit, then the day's next call refused.  Password changes are
 tested in the users file (other lines and notes kept) and in SQLite, and
 on a call: a wrong current password, the rules for the new one, the
-change, the next login with it, and a guest.  The system backend's uid,
-root and group rules are tested with PAM replaced.
+change, the next login with it, and a guest.  The auth socket is
+tested: right and wrong passwords, unknown, malformed and locked users,
+`allow_users` and its settings.  The system backend's uid, root and
+group rules are tested with PAM replaced.
 
 Two more tests run when their servers are given:
 

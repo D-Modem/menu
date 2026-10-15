@@ -1,0 +1,18 @@
+# /etc/systemd/system/modemmenu-authd.service - modemmenu's auth socket
+# alone ([authd]), for the BBS's other logins, where modemmenu runs from
+# app_dmodem a call at a time and not as -serve (which answers it too)
+[Unit]
+Description=modemmenu: the auth socket for the BBS
+Before=bbs.service
+
+[Service]
+ExecStart=/usr/local/bin/modemmenu -config /etc/asterisk/modemmenu.conf -authd
+RuntimeDirectory=modemmenu
+RuntimeDirectoryMode=0755
+Restart=on-failure
+# root for auth = system (PAM's pam_unix); otherwise a user of its own
+# that can read modemmenu.conf and the users file
+User=root
+
+[Install]
+WantedBy=multi-user.target

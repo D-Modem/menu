@@ -73,6 +73,7 @@ type settings struct {
 	signup     signupSettings
 	callerID   callerIDSettings
 	limits     limitSettings
+	authd      *authdSettings // nil: no auth socket
 	menuTitle  string
 	menuPrompt string
 	hangup     []string // what hangs up, upper case; the first one shown
@@ -154,6 +155,9 @@ func loadSettings(path string) (*settings, error) {
 		return nil, err
 	}
 	if err := loadAccess(c, s); err != nil {
+		return nil, err
+	}
+	if s.authd, err = loadAuthd(c.section("authd")); err != nil {
 		return nil, err
 	}
 
