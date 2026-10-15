@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Neo-Desktop
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // modemmenu: the login and menu of a dial-up line.  app_dmodem (or any
 // getty) runs it on the caller's line once the modems are connected; it
 // asks for a user name and password, checks them with a text file, LDAP

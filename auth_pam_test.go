@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Neo-Desktop
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //go:build pam
 
 package main

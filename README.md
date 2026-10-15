@@ -582,3 +582,25 @@ Two more tests run when their servers are given:
   `ou=groups,dc=example,dc=com` holding `cn=sysops` (`groupOfNames`,
   `member` lduser), `cn=dialup` (`posixGroup`, `memberUid` lduser) and
   `cn=other` (without), LDAP groups too.
+
+## License
+
+Copyright (C) 2026 Neo-Desktop.
+
+PBX-Modem is free software under the GNU Affero General Public License,
+version 3 only ([LICENSE](LICENSE), `SPDX-License-Identifier:
+AGPL-3.0-only`): use it, study it, change it and share it, commercially
+too, as long as what you distribute, and a modified version that people
+use remotely (callers included), comes with its complete source under
+the same license.
+
+For uses the AGPL does not allow (a product whose source you keep, a
+modified service without its source), Neo-Desktop offers commercial
+licenses: see [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
+
+Contributions come with a contributor agreement that lets them be part
+of both: see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+If you modify modemmenu and offer it to callers, the AGPL's section 13
+has you offer them its source: a menu item, the banner or the message of
+the day naming where it is will do.
