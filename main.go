@@ -192,7 +192,11 @@ func run(t *term, s *settings, sess *session) int {
 		sess.User, sess.Auth = rule.user, "callerid"
 		logf("login user=%s auth=callerid %v", sess.User, sess)
 	default:
-		if err := login(t, s, sess); err != nil {
+		err := login(t, s, sess)
+		if errors.Is(err, errAutoPPP) {
+			return autoPPP(t, s, sess)
+		}
+		if err != nil {
 			if !errors.Is(err, errHangup) {
 				t.write("\r\n")
 			}
@@ -252,6 +256,16 @@ func login(t *term, s *settings, sess *session) error {
 	for try := 1; try <= s.attempts; try++ {
 		if err := t.write(s.loginPrompt); err != nil {
 			return err
+		}
+		if s.autoppp.enabled {
+			// a dialer that starts PPP at once: no name, a PPP frame
+			ppp, err := sniffPPP(t, deadline)
+			if err != nil {
+				return err
+			}
+			if ppp {
+				return errAutoPPP
+			}
 		}
 		name, err := t.readLine(deadline, s.maxInput, true, "")
 		if err != nil {

@@ -252,6 +252,49 @@ An account that these rules keep out is "unknown" to this backend: the
 next one is asked, and the reason is logged.  With `run_as = {user}`, a
 selection such as the shell then runs as the caller's own account.
 
+### PPP dialers: AutoPPP and PAP
+
+Windows' Dial-Up Networking and most PPP dialers never see a login
+prompt: they start PPP as soon as the modems connect, and log in inside
+it with PAP.  With `[autoppp] enabled = yes`, a PPP frame where the
+login prompt wants a name makes modemmenu run `[autoppp] command` (pppd)
+on the line instead:
+
+```
+[autoppp]
+enabled = yes
+command = exec /usr/sbin/pppd nodetach lock passive local 192.168.77.1:192.168.77.2 ms-dns 192.168.77.1 require-pap refuse-chap refuse-mschap refuse-mschap-v2 refuse-eap plugin modemmenu.so ipparam autoppp
+item = ppp
+```
+
+pppd's `modemmenu.so` plugin ([pppd/modemmenu.c](pppd/modemmenu.c);
+`make` builds it when `ppp-dev`'s headers are there, `make install`
+puts it in pppd's plugin directory) asks modemmenu for the PAP login on
+an auth socket of the call's own, in pppd's environment as
+`MODEMMENU_AUTH_SOCKET` (or `{auth_socket}` for its `modemmenu-socket`
+option).  modemmenu checks the login as at the prompt: the backends,
+`user_pattern`, `attempts`, `fail_delay`; then the access rules of
+`[autoppp] item` (its `users`, `groups`, `min_baud`, `callerids`);
+then the time limits.  The time left becomes pppd's `maxconnect` (and
+modemmenu hangs pppd up soon after, should the link outlive it); the
+call is logged, counted in the day's use and the last callers as a
+login at the prompt is.  pppd's scripts get the caller's name
+(`PEERNAME`) and, from modemmenu, `MODEM_*` (the dialed number, the
+caller ID, the rate).
+
+- **PAP only.** CHAP and MS-CHAPv2 need the server to keep each
+  password where it can be read back, or an equivalent of it;
+  modemmenu's logins (bcrypt hashes, LDAP, PAM) do not.  The sample's
+  pppd refuses them.
+- **PAP's password crosses the line in clear.** Over the telephone
+  network that was the line's privacy; over SIP it is in the call's RTP:
+  give the trunk SRTP (and SIP over TLS), or keep it on a network you
+  trust.
+- **Fix the addresses** (`local:remote` on pppd's command line): the
+  plugin lets the logged-in peer have the address pppd gives it.
+- The plugin is built for the pppd of the headers it is built against
+  (`pppd_version`); rebuild it when pppd is upgraded.
+
 ### Changing passwords
 
 A `mode = passwd` item lets callers change their own password; it needs
@@ -627,6 +670,8 @@ auth_socket` (docs/wiki/Modem-Callers.md there).
   connect can guess passwords with it, each wrong one `fail_delay` late.
   Keep it to the BBS's user (`socket_mode` 0660 or 0600, `socket_group`,
   `allow_users`); a mode open to others is refused, and so is TCP.
+- AutoPPP's PAP sends the password in clear on the line, as any PAP
+  does: on a SIP trunk, give it SRTP or a network you trust.
 - The log (syslog's auth facility by default) gets logins, failures and
   selections, never passwords.  It is never the line: the caller would
   see it.
@@ -652,7 +697,14 @@ tested in the users file (other lines and notes kept) and in SQLite, and
 on a call: a wrong current password, the rules for the new one, the
 change, the next login with it, and a guest.  The auth socket is
 tested: right and wrong passwords, unknown, malformed and locked users,
-`allow_users` and its settings.  The time warnings are tested on a call
+`allow_users` and its settings.  AutoPPP is tested with the real
+`modemmenu.so` loaded by a stand-in for pppd ([pppd/test/host.c](pppd/test/host.c),
+exporting what pppd exports to plugins; this needs a C compiler and
+`ppp-dev`): PPP frames told from names, PAP logins right and wrong,
+`maxconnect` from the time limit, the access item, `attempts`, one login
+a call, and on a call a dialer's frame at the login prompt reaching
+pppd's plugin through the call's socket.  A real pppd needs a kernel
+with PPP (`ppp_generic`).  The time warnings are tested on a call
 (two, the longer first, and none with `time_warning = no`), the last callers list
 (kept to 200, the newest first, no caller ID) on two calls, and Active
 Directory's password encoding.  The system backend's uid, root and

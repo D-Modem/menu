@@ -25,6 +25,12 @@ type term struct {
 	in, out int
 	saved   *unix.Termios
 	lastCR  bool
+	pending []byte // read and put back (unread), read again first
+}
+
+// unread: b read again, before what the line has
+func (t *term) unread(b ...byte) {
+	t.pending = append(append([]byte{}, b...), t.pending...)
 }
 
 func newTerm(in, out *os.File) *term {
@@ -133,6 +139,11 @@ func pollOne(fd int, ev int16, d time.Duration) (bool, error) {
 
 // readByte within d, or errTimeout; errHangup when the line is gone
 func (t *term) readByte(d time.Duration) (byte, error) {
+	if len(t.pending) > 0 {
+		b := t.pending[0]
+		t.pending = t.pending[1:]
+		return b, nil
+	}
 	deadline := time.Now().Add(d)
 	var b [1]byte
 	for {

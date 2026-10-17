@@ -84,6 +84,7 @@ type settings struct {
 	callerID   callerIDSettings
 	limits     limitSettings
 	dropfile   dropfileSettings
+	autoppp    autopppSettings
 	authd      *authdSettings // nil: no auth socket
 	menuTitle  string
 	menuPrompt string
@@ -171,6 +172,9 @@ func loadSettings(path string) (*settings, error) {
 	if s.dropfile, err = loadDropfile(c.section("dropfile")); err != nil {
 		return nil, err
 	}
+	if s.autoppp, err = loadAutoPPP(c.section("autoppp")); err != nil {
+		return nil, err
+	}
 	if s.authd, err = loadAuthd(c.section("authd")); err != nil {
 		return nil, err
 	}
@@ -224,6 +228,9 @@ func loadSettings(path string) (*settings, error) {
 	}
 	if err := checkDropfiles(s); err != nil {
 		return nil, err
+	}
+	if s.autoppp.item != "" && s.selects(strings.ToUpper(s.autoppp.item)) == nil {
+		return nil, fmt.Errorf("[autoppp] item: no item %q", s.autoppp.item)
 	}
 	if s.hotkeys {
 		for _, it := range s.items {
