@@ -32,6 +32,13 @@ type session struct {
 	TimeLeft  string    `json:"time_left"` // whole minutes; "": no limit
 	// the same in seconds
 	SecondsLeft string `json:"seconds_left"`
+	// the caller's terminal, as detected ("": not asked): ansi, vt (an
+	// ANSI terminal that said what it is), vt52, petscii, ascii
+	Terminal string `json:"terminal"`
+	Term     string `json:"term"`      // a TERM for it: xterm, vt220, ansi, vt52, dumb...
+	TermName string `json:"term_name"` // what it said it is: xterm(390), VT220, SyncTERM (CTerm 1.316)
+	Rows     string `json:"rows"`
+	Cols     string `json:"cols"`
 	// an upstream menu's deadline, from its session header
 	upstreamDeadline time.Time
 
@@ -48,6 +55,15 @@ func newSession(rate, dialed, callerID string, now time.Time) *session {
 		Channel:   os.Getenv("DMODEM_CHANNEL"),
 		Profile:   os.Getenv("DMODEM_PROFILE"),
 		Connected: now,
+	}
+	// what an upstream menu found the terminal to be
+	s.Terminal = os.Getenv("MODEMMENU_UPSTREAM_TERMINAL")
+	s.Term = os.Getenv("MODEMMENU_UPSTREAM_TERM")
+	s.TermName = os.Getenv("MODEMMENU_UPSTREAM_TERM_NAME")
+	s.Rows = os.Getenv("MODEMMENU_UPSTREAM_ROWS")
+	s.Cols = os.Getenv("MODEMMENU_UPSTREAM_COLS")
+	for _, k := range []string{"TERMINAL", "TERM", "TERM_NAME", "ROWS", "COLS"} {
+		os.Unsetenv("MODEMMENU_UPSTREAM_" + k)
 	}
 	s.Rate = rate
 	tx, rx, ok := strings.Cut(rate, "/")
@@ -94,6 +110,11 @@ func (s *session) vars(withPassword bool) map[string]string {
 		"selection":    s.Selection,
 		"time_left":    s.TimeLeft,
 		"seconds_left": s.SecondsLeft,
+		"terminal":     s.Terminal,
+		"term":         s.Term,
+		"term_name":    s.TermName,
+		"rows":         s.Rows,
+		"cols":         s.Cols,
 		"date":         s.Connected.Format("2006-01-02"),
 		"time":         s.Connected.Format("15:04:05"),
 		"datetime":     s.Connected.Format(time.RFC3339),

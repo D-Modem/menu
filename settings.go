@@ -86,6 +86,7 @@ type settings struct {
 	limits     limitSettings
 	dropfile   dropfileSettings
 	autoppp    autopppSettings
+	terminal   terminalSettings
 	authd      *authdSettings // nil: no auth socket
 	menuTitle  string
 	menuPrompt string
@@ -175,6 +176,9 @@ func loadSettings(path string) (*settings, error) {
 		return nil, err
 	}
 	if s.autoppp, err = loadAutoPPP(c.section("autoppp")); err != nil {
+		return nil, err
+	}
+	if s.terminal, err = loadTerminal(c.section("terminal")); err != nil {
 		return nil, err
 	}
 	if s.authd, err = loadAuthd(c.section("authd")); err != nil {

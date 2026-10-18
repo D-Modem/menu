@@ -343,6 +343,72 @@ and `connect_message = ""` turns it off.  `{baud}`, `{tx_rate}` and
 `{rx_rate}` are the bare numbers, e.g. `connect_message =
 "CONNECT {baud}\r\n"` for the modem's own words.
 
+### The caller's terminal
+
+Before the banner, modemmenu asks the caller's terminal what it is, as
+[bbs-sec](https://github.com/Neo-Desktop/bbs-sec) does, and in this
+order:
+
+1. **TN3270** (only with `[terminal] tn3270` set): telnet's `DO TTYPE`.
+   A client that speaks telnet answers with its terminal type; a 3270's
+   (`IBM-3278-2-E`, `IBM-DYNAMIC`...) is handed to the tn3270 server
+   there (`tcp:host:port`, or a unix socket's path) instead of the login,
+   which asks for the terminal type again from the start.  A modem line
+   has no telnet of its own: this is for a TN3270 client that reaches
+   the modem through a telnet modem (a WiFi modem, tcpser) or a
+   serial-to-telnet bridge.  A terminal that is no telnet client shows
+   the question as two characters, which are wiped, after `timeout`.
+2. **ANSI**: the cursor sent as far down and right as it goes, and its
+   position asked for (`CSI 6n`).  An ANSI terminal answers, and the
+   answer is its size.  Nothing shows on one that does; the question
+   is wiped on one that does not.
+3. **VT52**, if not ANSI: `ESC Z`, which a VT52 answers `ESC / K`.
+4. **What an ANSI terminal is**: DEC's questions (the answerback, the
+   primary and secondary device attributes), xterm's version
+   (XTVERSION) and SyncTERM's CTerm attributes.  A DEC VT220 says it is
+   one; xterm says `XTerm(390)`; SyncTERM its CTerm version.
+5. **PETSCII**, if not ANSI: a Commodore 64 or 128 asks nothing and
+   answers nothing, so the login prompt watches its keys.  DEL, the
+   cursor keys, the function keys and the shifted letters are bytes only
+   a Commodore sends: one of them, and the prompt starts again in
+   PETSCII.  A name typed all in capitals (a Commodore's unshifted keys,
+   or ASCII in capitals) gets `PRESS DEL (OR BACKSPACE):`, and the key
+   that comes tells which.  From then on the menu's texts are PETSCII
+   (the letters' cases swapped as the C64's lower/upper case set has
+   them, line ends as RETURN, escape sequences left out) and its keys
+   read as ASCII; what a selection sends and gets is its own.
+
+What comes while the terminal is asked that is no answer (a caller who
+types at once) is the login's; a PPP frame ends the questions and goes
+to AutoPPP.  The result is in the log (`terminal vt (XTerm(390)) 132x50`)
+and is the selection's:
+
+| placeholder | environment | |
+|---|---|---|
+| `{terminal}` | `MODEM_TERMINAL` | `vt` (an ANSI terminal that said what it is), `ansi`, `vt52`, `petscii`, `ascii`; empty when not asked |
+| `{term}` | `MODEM_TERM`, and `TERM` of exec items | a terminal type for it: `xterm`, `syncterm`, `vt100`, `vt220`... `vt520`, `ansi`, `vt52`, `dumb` |
+| `{term_name}` | `MODEM_TERM_NAME` | what it said it is: `XTerm(390)`, `VT220`, `SyncTERM (CTerm 1.316)`, its answerback, a telnet client's terminal type |
+| `{rows}`, `{cols}` | `MODEM_ROWS`, `MODEM_COLS` | its size (40 by 25 for a Commodore), also set on the line for exec items (`stty size`) |
+
+E.g. `rlogin_terminal = {term}/{baud}` for a BBS that takes the type
+from rlogin, or `[dropfile] emulation = auto` (the default), which
+gives a door ASCII for a terminal without ANSI (VT52, PETSCII, a plain
+one) and ANSI otherwise.  An item with `header = yes` passes it on: a
+downstream `modemmenu -serve` does not ask again.
+
+```ini
+[terminal]
+detect = yes        ; ask: ANSI, VT52, what an ANSI terminal is
+petscii = auto      ; auto: watch the login for a Commodore; yes: every caller is one; no
+timeout = 2s        ; for each question
+;tn3270 = tcp:127.0.0.1:3270  ; TN3270 clients to this server (empty: not asked)
+;tn3270_header = no ; the session header ahead of them
+```
+
+The questions cost a moment on a terminal that answers (each ends with
+its answer) and `timeout` for each one it does not (2 s for ANSI, 1 s
+for VT52, and the `tn3270` question first when set).
+
 ### Message of the day
 
 After the welcome and before the menu, modemmenu shows `[general] motd`
@@ -518,7 +584,7 @@ stdout, which is how modemmenu runs doors:
 | `rate` | `38400` | the DTE rate, as Synchronet writes: doors built on DMlib and others refuse a rate a FOSSIL does not have, such as a modem's 26400.  `connect` gives the modems' rate |
 | `com_port`, `fossil` | `COM1:`, `yes` | a DOS door under DOSEMU reaches the caller through the port DOSEMU maps to the line, with a FOSSIL driver (`COM0:` is a local login) |
 | `four_digit_years` | `no` | `DOOR.SYS`'s dates as MM/DD/YYYY, which some newer doors want (MBSE's option) |
-| `bbs_name`, `sysop`, `security`, `emulation` | | what the BBS is called, its sysop, the callers' security level (an item's `security =` overrides it), `ansi` or `ascii` |
+| `bbs_name`, `sysop`, `security`, `emulation` | | what the BBS is called, its sysop, the callers' security level (an item's `security =` overrides it), `auto` (by the detected terminal; the default), `ansi` or `ascii` |
 
 Synchronet's documents the formats in its wiki
 ([DOOR32.SYS](https://wiki.synchro.net/ref:door32.sys),
@@ -570,6 +636,8 @@ cooked terminal (`tty = sane`), and return to the menu.
 | `{selection}` | `MODEM_SELECTION` | the item chosen |
 | `{time_left}` | `MODEM_TIME_LEFT` | whole minutes left, empty without a limit |
 | `{seconds_left}` | `MODEM_SECONDS_LEFT` | the same in seconds |
+| `{terminal}`, `{term}`, `{term_name}` | `MODEM_TERMINAL`, `MODEM_TERM` (and `TERM`), `MODEM_TERM_NAME` | the caller's terminal, as detected (above) |
+| `{rows}`, `{cols}` | `MODEM_ROWS`, `MODEM_COLS` | its size, if it said |
 | `{node}`, `{dropfile_dir}` | `MODEM_NODE`, `MODEM_DROPFILE_DIR` | a door's node and its drop files' directory (`dropfile =` items) |
 
 How it reaches each kind of selection:

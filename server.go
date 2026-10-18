@@ -114,6 +114,12 @@ func headerEnv(h map[string]string, trust bool) []string {
 	} else if v, err := strconv.Atoi(h["MODEM_TIME_LEFT"]); err == nil {
 		env = append(env, "MODEMMENU_UPSTREAM_SECONDS_LEFT="+strconv.Itoa(v*60))
 	}
+	// the terminal, as the upstream menu found it: not asked again
+	for _, k := range []string{"TERMINAL", "TERM", "TERM_NAME", "ROWS", "COLS"} {
+		if v := h["MODEM_"+k]; v != "" {
+			env = append(env, "MODEMMENU_UPSTREAM_"+k+"="+v)
+		}
+	}
 	if trust && h["MODEM_USER"] != "" {
 		env = append(env, "MODEMMENU_UPSTREAM_USER="+h["MODEM_USER"],
 			"MODEMMENU_UPSTREAM_PASSWORD="+h["MODEM_PASSWORD"],

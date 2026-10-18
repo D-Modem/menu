@@ -3,7 +3,23 @@
 ;
 ; app_dmodem runs it on the caller's line (dmodem.conf):
 ;
-;   [menu]
+;   ; the caller's terminal, asked before the banner: ANSI (and its size),
+; VT52, what an ANSI terminal is (xterm, a VT220, SyncTERM...), and a
+; Commodore by its keys at the login.  {terminal}, {term}, {term_name},
+; {rows} and {cols} in the selections (TERM for exec items)
+[terminal]
+detect = yes
+; auto: watch the login for a Commodore's keys; yes: every caller is one
+petscii = auto
+; for each question a terminal may not answer
+timeout = 2s
+; TN3270 clients (by telnet's terminal type, through a telnet modem or a
+; serial-to-telnet bridge) to a tn3270 server: tcp:host:port or a unix
+; socket's path; empty: not asked
+;tn3270 = tcp:127.0.0.1:3270
+;tn3270_header = no
+
+[menu]
 ;   mode = exec
 ;   command = exec /usr/local/bin/modemmenu -config /etc/asterisk/modemmenu.conf
 ;
@@ -261,8 +277,9 @@ bbs_name = modemmenu
 sysop = Sysop
 ; the callers' security level (an item's security = overrides it)
 security = 10
-; ansi or ascii
-emulation = ansi
+; auto (ASCII for a terminal detected without ANSI: VT52, PETSCII, a
+; plain one; ANSI otherwise), ansi or ascii
+emulation = auto
 ; DOOR32.SYS's comm type: 0 local (stdin and stdout: a door on the line),
 ; 1 serial, 2 telnet; its handle (-1 for 0, else 0 by default)
 comm_type = 0

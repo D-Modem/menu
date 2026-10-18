@@ -34,13 +34,35 @@ type caller struct {
 	buf bytes.Buffer
 }
 
+// newCaller: a caller with an ANSI terminal of 24 lines of 80, which
+// answers where its cursor is (and nothing else it is asked)
 func newCaller(t *testing.T, m io.ReadWriter) *caller {
+	return newTermCaller(t, m, func(q []byte) []byte {
+		if bytes.Contains(q, []byte("\x1b[6n")) {
+			return []byte("\x1b[24;80R")
+		}
+		return nil
+	})
+}
+
+// newTermCaller: a caller whose terminal answers what it is asked: answer
+// gets what came (with the end of what came before), and says what goes
+// back
+func newTermCaller(t *testing.T, m io.ReadWriter, answer func([]byte) []byte) *caller {
 	c := &caller{t: t, m: m, in: make(chan []byte, 64)}
 	go func() {
+		var tail []byte
 		for {
 			b := make([]byte, 1024)
 			n, err := m.Read(b)
 			if n > 0 {
+				q := append(tail, b[:n]...)
+				if a := answer(q); a != nil {
+					m.Write(a)
+					tail = nil
+				} else {
+					tail = append([]byte{}, q[max(0, len(q)-8):]...)
+				}
 				c.in <- b[:n]
 			}
 			if err != nil {

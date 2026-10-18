@@ -179,6 +179,18 @@ func run(t *term, s *settings, sess *session) int {
 		t.write(s.callerID.denyMessage)
 		return 1
 	}
+	// what the terminal is, before anything is written for it
+	is3270, err := detectTerminal(t, s, sess)
+	if err != nil {
+		logf("no login: %v (%v)", err, sess)
+		return 1
+	}
+	if sess.Terminal != "" {
+		logf("terminal %s %v", sess.describeTerminal(), sess)
+	}
+	if is3270 {
+		return tn3270(t, s, sess)
+	}
 	if t.write(expand(s.banner, sess.vars(false), nil)) != nil {
 		return 1
 	}
@@ -258,6 +270,8 @@ func describe(err error) string {
 // or the login timeout
 func login(t *term, s *settings, sess *session) error {
 	deadline := time.Now().Add(s.loginTimeout)
+	// a terminal not known by the end is not a Commodore
+	defer func() { t.watchPETSCII = false }()
 	for try := 1; try <= s.attempts; try++ {
 		if err := t.write(s.loginPrompt); err != nil {
 			return err
@@ -273,8 +287,19 @@ func login(t *term, s *settings, sess *session) error {
 			}
 		}
 		name, err := t.readLine(deadline, s.maxInput, true, "")
+		if errors.Is(err, errPETSCII) {
+			// a Commodore's key: the prompt again, for it
+			becomePETSCII(t, sess)
+			try--
+			continue
+		}
 		if err != nil {
 			return err
+		}
+		if t.watchPETSCII && name != "" {
+			if name, err = settlePETSCII(t, s, sess, name, deadline); err != nil {
+				return err
+			}
 		}
 		name = strings.TrimSpace(name)
 		if name == "" {

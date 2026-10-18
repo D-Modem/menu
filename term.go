@@ -15,6 +15,8 @@ import (
 var (
 	errTimeout = errors.New("timeout")
 	errHangup  = errors.New("hangup")
+	// while watchPETSCII: a key only a Commodore sends
+	errPETSCII = errors.New("a Commodore's key")
 )
 
 // term: the caller's line on stdin and stdout.  app_dmodem's pty is raw
@@ -26,6 +28,20 @@ type term struct {
 	saved   *unix.Termios
 	lastCR  bool
 	pending []byte // read and put back (unread), read again first
+	// a Commodore: what the menu writes and reads is PETSCII
+	petscii bool
+	// the terminal may be a Commodore's: a key only one sends ends a line
+	// with errPETSCII
+	watchPETSCII bool
+}
+
+// setPETSCII: the line a Commodore's from here on, in its lower/upper
+// case set
+func (t *term) setPETSCII() {
+	if !t.petscii {
+		t.petscii = true
+		t.writeRaw("\x0e")
+	}
 }
 
 // unread: b read again, before what the line has
@@ -99,7 +115,16 @@ func (t *term) close() {
 	}
 }
 
+// write what the menu says, as the terminal takes it
 func (t *term) write(s string) error {
+	if t.petscii {
+		return t.writeRaw(string(petsciiOut(s)))
+	}
+	return t.writeRaw(s)
+}
+
+// writeRaw: bytes as they are (a selection's, the terminal's questions)
+func (t *term) writeRaw(s string) error {
 	b := []byte(s)
 	for len(b) > 0 {
 		n, err := unix.Write(t.out, b)
@@ -179,6 +204,15 @@ func (t *term) readLine(deadline time.Time, max int, echo bool, mask string) (st
 		if err != nil {
 			return "", err
 		}
+		if t.watchPETSCII && petsciiTelltale(c) {
+			if c < 0xc1 || !t.continuation() {
+				return "", errPETSCII
+			}
+			continue // a letter of UTF-8, not a shifted one
+		}
+		if t.petscii {
+			c = petsciiIn(c)
+		}
 		if c == '\n' && t.lastCR {
 			t.lastCR = false
 			continue
@@ -228,6 +262,9 @@ func (t *term) readKey(deadline time.Time) (string, error) {
 			t.lastCR = false
 			continue
 		}
+		if t.petscii {
+			c = petsciiIn(c)
+		}
 		t.lastCR = c == '\r'
 		if c == 0x04 {
 			return "", io.EOF
@@ -239,4 +276,18 @@ func (t *term) readKey(deadline time.Time) (string, error) {
 			return string(c), nil
 		}
 	}
+}
+
+// continuation: whether a UTF-8 continuation byte follows at once (it is
+// taken)
+func (t *term) continuation() bool {
+	c, err := t.readByte(200 * time.Millisecond)
+	if err != nil {
+		return false
+	}
+	if c >= 0x80 && c <= 0xbf {
+		return true
+	}
+	t.unread(c)
+	return false
 }

@@ -64,6 +64,10 @@ func runExec(t *term, cfg *settings, it *menuItem, s *session, deadline time.Tim
 		}
 	}
 	env = append(env, s.environ(it.password)...)
+	if s.Term != "" {
+		// the terminal as detected
+		env = setEnv(env, "TERM", s.Term)
+	}
 
 	uid, gid := -1, -1
 	var cred *syscall.Credential
@@ -248,7 +252,7 @@ func runTCP(t *term, it *menuItem, s *session, deadline time.Time) error {
 		conn.SetDeadline(time.Time{})
 		if ack[0] != 0 {
 			// not the ack: the server's first byte of output
-			t.write(string(ack[:]))
+			t.writeRaw(string(ack[:]))
 		}
 	case "telnet":
 		tn = &telnet{conn: conn, term: expand(it.terminal, v, nil),
@@ -272,6 +276,18 @@ func runTCP(t *term, it *menuItem, s *session, deadline time.Time) error {
 		}
 	}
 
+	// what the caller sent that the menu read and did not take
+	if len(t.pending) > 0 {
+		b := t.pending
+		t.pending = nil
+		if tn != nil {
+			b = tn.encode(b)
+		}
+		if _, err := conn.Write(b); err != nil {
+			return timeUp(err)
+		}
+	}
+
 	// the server to the caller
 	done := make(chan error, 1)
 	go func() {
@@ -283,7 +299,7 @@ func runTCP(t *term, it *menuItem, s *session, deadline time.Time) error {
 				if tn != nil {
 					out = tn.decode(out)
 				}
-				if werr := t.write(string(out)); werr != nil {
+				if werr := t.writeRaw(string(out)); werr != nil {
 					done <- werr
 					return
 				}

@@ -30,7 +30,7 @@ type dropfileSettings struct {
 	bbsName   string
 	sysop     string
 	security  int
-	emulation string // ansi, ascii
+	emulation string // auto (as detected), ansi, ascii
 	// how the door reaches the caller: DOOR32.SYS's comm type (0 local:
 	// stdin and stdout, 1 serial, 2 telnet) and handle (-1 for local),
 	// DOOR.SYS's and DORINFO's port (COM1:, COM0: local), DORINFO's
@@ -52,7 +52,7 @@ func loadDropfile(sec *section) (dropfileSettings, error) {
 	d := dropfileSettings{
 		bbsName:   sec.get("bbs_name", "modemmenu"),
 		sysop:     sec.get("sysop", "Sysop"),
-		emulation: strings.ToLower(sec.get("emulation", "ansi")),
+		emulation: strings.ToLower(sec.get("emulation", "auto")),
 		comPort:   strings.ToUpper(sec.get("com_port", "COM1:")),
 		rate:      strings.ToLower(sec.get("rate", "38400")),
 	}
@@ -78,8 +78,8 @@ func loadDropfile(sec *section) (dropfileSettings, error) {
 	if d.maxNodes, err = sec.int("max_nodes", 64); err != nil {
 		return d, err
 	}
-	if d.emulation != "ansi" && d.emulation != "ascii" {
-		return d, fmt.Errorf("[dropfile] emulation: %q (ansi or ascii)", d.emulation)
+	if d.emulation != "auto" && d.emulation != "ansi" && d.emulation != "ascii" {
+		return d, fmt.Errorf("[dropfile] emulation: %q (auto, ansi or ascii)", d.emulation)
 	}
 	if d.comType < 0 || d.comType > 2 {
 		return d, fmt.Errorf("[dropfile] comm_type: %d (0 local, 1 serial, 2 telnet)", d.comType)
@@ -258,7 +258,7 @@ func split(name string) (string, string) {
 // door32: DOOR32.SYS (Mystic's Door32 revision 1), its 11 lines
 func (in dropfileInfo) door32() []string {
 	emu := "1"
-	if in.df.emulation == "ascii" {
+	if in.ascii() {
 		emu = "0"
 	}
 	return []string{
@@ -282,7 +282,7 @@ func (in dropfileInfo) door32() []string {
 func (in dropfileInfo) doorSys() []string {
 	date := in.date(in.now)
 	graphics := "GR"
-	if in.df.emulation == "ascii" {
+	if in.ascii() {
 		graphics = "NG"
 	}
 	port := strings.TrimSuffix(in.df.comPort, ":") + ":"
@@ -354,7 +354,7 @@ func (in dropfileInfo) dorinfo() []string {
 	sysFirst, sysLast := split(in.df.sysop)
 	first, last := split(in.s.User)
 	graphics := "1"
-	if in.df.emulation == "ascii" {
+	if in.ascii() {
 		graphics = "0"
 	}
 	fossil := "0"
@@ -434,4 +434,19 @@ func userNumber(dir, user string) (int, error) {
 	n++
 	_, err = fmt.Fprintf(f, "%d\t%s\n", n, user)
 	return n, err
+}
+
+// ascii: the door's caller has no ANSI: emulation = ascii, or with auto a
+// terminal detected as one without (VT52, a Commodore, a plain one)
+func (in dropfileInfo) ascii() bool {
+	switch in.df.emulation {
+	case "ascii":
+		return true
+	case "auto":
+		switch in.s.Terminal {
+		case "ascii", "vt52", "petscii":
+			return true
+		}
+	}
+	return false
 }
