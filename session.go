@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"sort"
 	"strconv"
@@ -61,6 +62,21 @@ func newSession(rate, dialed, callerID string, now time.Time) *session {
 	return s
 }
 
+// Speed: the connect rate for the caller to read: "33600 bit/s", or with
+// the directions apart "50666 bit/s down, 31200 bit/s up" (down: to the
+// caller); "" when it is not known
+func (s *session) Speed() string {
+	tx, errT := strconv.Atoi(s.TxRate)
+	rx, errR := strconv.Atoi(s.RxRate)
+	switch {
+	case errT != nil || tx <= 0:
+		return ""
+	case errR != nil || rx <= 0 || rx == tx:
+		return strconv.Itoa(tx) + " bit/s"
+	}
+	return fmt.Sprintf("%d bit/s down, %d bit/s up", tx, rx)
+}
+
 // vars: the placeholders of templates and the environment, by name
 func (s *session) vars(withPassword bool) map[string]string {
 	v := map[string]string{
@@ -72,6 +88,7 @@ func (s *session) vars(withPassword bool) map[string]string {
 		"rate":         s.Rate,
 		"tx_rate":      s.TxRate,
 		"rx_rate":      s.RxRate,
+		"speed":        s.Speed(),
 		"channel":      s.Channel,
 		"profile":      s.Profile,
 		"selection":    s.Selection,

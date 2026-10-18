@@ -18,6 +18,7 @@ type general struct {
 	loginPrompt    string
 	passwordPrompt string
 	welcome        string
+	connectMessage string // after the banner, when the rate is known
 	motd           string
 	motdFile       string
 	goodbye        string
@@ -113,6 +114,7 @@ func loadSettings(path string) (*settings, error) {
 	s.loginPrompt = unescape(g.get("login_prompt", `\r\nlogin: `))
 	s.passwordPrompt = unescape(g.get("password_prompt", "Password: "))
 	s.welcome = unescape(g.get("welcome", `\r\nWelcome, {user}.\r\n`))
+	s.connectMessage = unescape(g.get("connect_message", `\r\nConnected at {speed}.\r\n`))
 	s.motd = unescape(g.get("motd", ""))
 	s.motdFile = g.get("motd_file", "")
 	s.goodbye = unescape(g.get("goodbye", `\r\nGoodbye.\r\n`))

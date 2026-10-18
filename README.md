@@ -9,10 +9,12 @@ offers a menu:
 ```
 Welcome to D-Modem.
 
+Connected at 33600 bit/s.
+
 login: alice
 Password: ******
 
-Hello alice, connected at 33600 bit/s on 2026-10-10 21:05:09.
+Hello alice, on 2026-10-10 at 21:05:09.
 
 The line is down for maintenance on Sunday.
 
@@ -322,6 +324,25 @@ the like are not for root): for a policy, put `pam_pwquality` before it
 with `enforce_for_root`, as
 [modemmenu.pam.sample](modemmenu.pam.sample) shows.
 
+### The connect rate
+
+Right after the banner, before the login prompt, modemmenu tells the
+caller how fast the modems connected, as BBSs did:
+
+```
+Connected at 33600 bit/s.
+Connected at 50666 bit/s down, 31200 bit/s up.
+```
+
+The second is a V.90 call, its two directions apart (down: to the
+caller).  `[general] connect_message` (`"\r\nConnected at {speed}.\r\n"`)
+is the text; `{speed}` is the rate put so, and works in the other texts
+too (the welcome, the message of the day, the prompt).  The message is
+left out when the rate is not known (no `DMODEM_RATE` and no `-rate`),
+and `connect_message = ""` turns it off.  `{baud}`, `{tx_rate}` and
+`{rx_rate}` are the bare numbers, e.g. `connect_message =
+"CONNECT {baud}\r\n"` for the modem's own words.
+
 ### Message of the day
 
 After the welcome and before the menu, modemmenu shows `[general] motd`
@@ -541,6 +562,7 @@ cooked terminal (`tty = sane`), and return to the menu.
 | `{dialed}` | `MODEM_DIALED` | the number dialed |
 | `{callerid}` | `MODEM_CALLERID` | the caller's number |
 | `{baud}` | `MODEM_BAUD` | the connect rate towards the caller, bit/s |
+| `{speed}` | `MODEM_SPEED` | the connect rate for reading: `33600 bit/s`, or `50666 bit/s down, 31200 bit/s up`; empty if not known |
 | `{rate}`, `{tx_rate}`, `{rx_rate}` | `MODEM_RATE`, `MODEM_TX_RATE`, `MODEM_RX_RATE` | both rates |
 | `{date}`, `{time}` | `MODEM_DATE`, `MODEM_TIME` | the connection's date and time |
 | `{datetime}`, `{epoch}` | `MODEM_DATETIME`, `MODEM_EPOCH` | the same, RFC 3339 and Unix time |
@@ -707,7 +729,9 @@ pppd's plugin through the call's socket.  A real pppd needs a kernel
 with PPP (`ppp_generic`).  The time warnings are tested on a call
 (two, the longer first, and none with `time_warning = no`), the last callers list
 (kept to 200, the newest first, no caller ID) on two calls, and Active
-Directory's password encoding.  The system backend's uid, root and
+Directory's password encoding.  The connect rate is tested as `{speed}` (the same both ways, apart, not
+known) and on calls (after the banner, left out without a rate, its own
+text, off).  The system backend's uid, root and
 group rules are tested with PAM replaced.
 
 Two more tests run when their servers are given:

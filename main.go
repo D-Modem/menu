@@ -182,6 +182,11 @@ func run(t *term, s *settings, sess *session) int {
 	if t.write(expand(s.banner, sess.vars(false), nil)) != nil {
 		return 1
 	}
+	// the connect rate, as BBSs greeted their callers (not when it is
+	// not known: no "Connected at ." on a getty without -rate)
+	if s.connectMessage != "" && sess.Speed() != "" {
+		t.write(expand(s.connectMessage, sess.vars(false), nil))
+	}
 	rule := s.numberRule(sess.CallerID)
 	switch {
 	case sess.User != "":

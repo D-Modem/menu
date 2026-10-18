@@ -57,7 +57,11 @@ banner = "\r\nWelcome to D-Modem.\r\n"
 ;banner_file = /etc/asterisk/modemmenu.banner
 login_prompt = "\r\nlogin: "
 password_prompt = "Password: "
-welcome = "\r\nHello {user}, connected at {baud} bit/s on {date} {time}.\r\n"
+; after the banner, before the login prompt: the connect rate ({speed}:
+; "33600 bit/s", or "50666 bit/s down, 31200 bit/s up"); left out when it
+; is not known; "" for none
+connect_message = "\r\nConnected at {speed}.\r\n"
+welcome = "\r\nHello {user}, on {date} at {time}.\r\n"
 ; the message of the day, after the welcome and before the menu: motd,
 ; then the file (read at each login), {placeholders} in both
 ;motd = "\r\nThe line is down for maintenance on Sunday.\r\n"
