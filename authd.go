@@ -57,6 +57,7 @@ type authReply struct {
 
 const maxAuthRequest = 4096
 
+// loadAuthd: [authd], the auth socket; nil when it has no listen
 func loadAuthd(sec *section) (*authdSettings, error) {
 	if sec.get("listen", "") == "" {
 		return nil, nil
@@ -115,6 +116,7 @@ func authd(s *settings) int {
 	return 0
 }
 
+// listenAuth: the auth socket, listening
 func listenAuth(a *authdSettings) (net.Listener, error) {
 	ln, err := listen(&serverSettings{listen: a.listen, socketMode: a.socketMode, socketGroup: a.socketGroup})
 	if err != nil {
@@ -171,6 +173,8 @@ func peerUID(conn net.Conn) (uint32, bool) {
 	return cred.Uid, true
 }
 
+// answerAuth: one request on the auth socket: who asks (allow_users),
+// the credentials checked by the backends, the answer as JSON
 func answerAuth(s *settings, conn net.Conn) {
 	defer conn.Close()
 	who := peer(conn)

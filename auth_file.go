@@ -19,6 +19,7 @@ type fileAuth struct {
 	scheme string
 }
 
+// newFileAuth: the [file] backend, its users file checked to exist
 func newFileAuth(s *section) (authenticator, error) {
 	a := &fileAuth{
 		path:   s.get("path", "/etc/asterisk/modemmenu.users"),
@@ -30,8 +31,11 @@ func newFileAuth(s *section) (authenticator, error) {
 	return a, nil
 }
 
+// name: the backend's name, for {auth} and the log
 func (a *fileAuth) name() string { return "file" }
 
+// authenticate: the user's line in the users file and its hash
+// checked; a locked entry (!) is refused
 func (a *fileAuth) authenticate(_ context.Context, user, password string) error {
 	f, err := os.Open(a.path)
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 	"testing"
 )
 
+// TestParseVT: names, TERMs and levels from real terminals' answers
 func TestParseVT(t *testing.T) {
 	for _, c := range []struct {
 		what, reply, name, term string
@@ -37,6 +38,8 @@ func TestParseVT(t *testing.T) {
 	}
 }
 
+// TestPETSCIIText: the menu's text as PETSCII, and a Commodore's keys
+// as ASCII
 func TestPETSCIIText(t *testing.T) {
 	if got := string(petsciiOut("Hi you\r\n\x1b[1;33mX\b \b\n")); got != "\xc8I YOU\r\xd8\x9d \x9d\r" {
 		t.Errorf("out %q", got)
@@ -103,6 +106,8 @@ func replies(qa ...string) func([]byte) []byte {
 	}
 }
 
+// TestDetectTerminal: on a line, each kind of terminal detected, and
+// what an exec item is told of it
 func TestDetectTerminal(t *testing.T) {
 	dir := t.TempDir()
 	bin, conf := terminalConf(t, dir, "")
@@ -165,6 +170,8 @@ func TestDetectTypeAhead(t *testing.T) {
 	waitExit(t, cmd)
 }
 
+// TestDetectPETSCII: a Commodore found by its keys or by DEL, not
+// asked of an ANSI terminal, set by petscii = yes or an upstream menu
 func TestDetectPETSCII(t *testing.T) {
 	dir := t.TempDir()
 	bin, conf := terminalConf(t, dir, "")

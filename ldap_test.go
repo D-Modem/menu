@@ -45,6 +45,7 @@ func TestLDAP(t *testing.T) {
 	}
 }
 
+// TestADPassword: unicodePwd's encoding, and AD's change request
 func TestADPassword(t *testing.T) {
 	// "pw" in quotes, UTF-16LE
 	if got := adPassword("pw"); got != "\x22\x00p\x00w\x00\x22\x00" {

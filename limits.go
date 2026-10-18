@@ -24,6 +24,7 @@ var errTimeLimit = errors.New("time limit")
 // the seconds used, "2026-10-12 1830".  Concurrent calls of a user (or
 // sessions of modemmenu -serve) add to it under a lock.
 
+// usagePath: the file of a user's usage today in state_dir
 func usagePath(dir, user string) string {
 	return filepath.Join(dir, "usage", url.PathEscape(user))
 }
@@ -44,6 +45,8 @@ func usedToday(dir, user, day string) (time.Duration, error) {
 	return parseUsage(string(b[:n]), day), nil
 }
 
+// parseUsage: the usage a file records for day ("YYYY-MM-DD seconds"),
+// 0 for another day
 func parseUsage(s, day string) time.Duration {
 	d, secs, ok := strings.Cut(strings.TrimSpace(s), " ")
 	if !ok || d != day {
@@ -181,12 +184,14 @@ var (
 	atExit   func()
 )
 
+// setAtExit: f to run when modemmenu is hung up (the usage recorded)
 func setAtExit(f func()) {
 	atExitMu.Lock()
 	atExit = f
 	atExitMu.Unlock()
 }
 
+// runAtExit: the function setAtExit gave, if any
 func runAtExit() {
 	atExitMu.Lock()
 	f := atExit

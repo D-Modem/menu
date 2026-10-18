@@ -21,6 +21,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// TestCheckPassword: each stored hash scheme accepts the right password
+// and refuses others
 func TestCheckPassword(t *testing.T) {
 	bc, _ := bcrypt.GenerateFromPassword([]byte("pw"), bcrypt.MinCost)
 	s256 := sha256.Sum256([]byte("pw"))
@@ -57,6 +59,8 @@ func TestCheckPassword(t *testing.T) {
 	}
 }
 
+// TestExpand: {placeholders} replaced and shell-quoted; unknown ones
+// kept
 func TestExpand(t *testing.T) {
 	v := map[string]string{"user": "o'neil; rm -rf /", "baud": "33600"}
 	got := expand("login {user} {baud} {unknown} {", v, shellQuote)
@@ -72,6 +76,7 @@ func TestExpand(t *testing.T) {
 	}
 }
 
+// TestSession: the call's details in the environment
 func TestSession(t *testing.T) {
 	now := time.Date(2026, 10, 10, 21, 5, 9, 0, time.UTC)
 	s := newSession("50666/31200", "5551000", "5559999", now)
@@ -89,6 +94,8 @@ func TestSession(t *testing.T) {
 	}
 }
 
+// TestTelnetDecode: the telnet client's data, its replies to the
+// server, and the caller's bytes encoded
 func TestTelnetDecode(t *testing.T) {
 	var sent []byte
 	tn := &telnet{conn: nil, term: "ANSI", local: map[byte]bool{}, remote: map[byte]bool{}}
@@ -108,6 +115,8 @@ func TestTelnetDecode(t *testing.T) {
 	}
 }
 
+// TestINI: the configuration file's sections, keys in lower case and
+// quoted values
 func TestINI(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "c.conf")
@@ -124,6 +133,8 @@ func TestINI(t *testing.T) {
 	}
 }
 
+// TestBackends: the file and SQL backends, in order, accept and refuse
+// as they should
 func TestBackends(t *testing.T) {
 	dir := t.TempDir()
 	users := filepath.Join(dir, "users")
@@ -185,11 +196,14 @@ func TestBackends(t *testing.T) {
 
 type recorder struct{ b *[]byte }
 
+// Write: p kept
 func (r *recorder) Write(p []byte) (int, error) {
 	*r.b = append(*r.b, p...)
 	return len(p), nil
 }
 
+// TestMenuSettings: what keys, names and aliases select, and the menu
+// settings that are refused
 func TestMenuSettings(t *testing.T) {
 	dir := t.TempDir()
 	users := filepath.Join(dir, "users")
@@ -227,6 +241,7 @@ func TestMenuSettings(t *testing.T) {
 	}
 }
 
+// runGo: the go command with args, its output
 func runGo(args ...string) ([]byte, error) {
 	return exec.Command("go", args...).CombinedOutput()
 }

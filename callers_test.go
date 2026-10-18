@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+// TestCallersList: the list keeps the newest callersKept logins,
+// newest first
 func TestCallersList(t *testing.T) {
 	dir := t.TempDir()
 	start := time.Date(2026, 10, 15, 20, 0, 0, 0, time.UTC)
@@ -40,6 +42,7 @@ func TestCallersList(t *testing.T) {
 	}
 }
 
+// TestCallersLine: on a line, a mode = callers item shows who called
 func TestCallersLine(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "modemmenu")

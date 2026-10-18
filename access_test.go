@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+// TestStripComment: inline comments end a value after whitespace, not
+// inside quotes or a word; \; and \# are kept as text
 func TestStripComment(t *testing.T) {
 	for in, want := range map[string]string{
 		"P ; PPP":                  "P ",
@@ -100,6 +102,8 @@ command = exec sleep 30
 	return p
 }
 
+// TestAccessRules: the items each caller sees by user, group, rate,
+// caller ID and guest
 func TestAccessRules(t *testing.T) {
 	dir := t.TempDir()
 	s, err := loadSettings(accessConf(t, dir, ""))
@@ -176,6 +180,8 @@ func TestAccessRules(t *testing.T) {
 	}
 }
 
+// TestUsage: a day's usage adds up, starts again the next day, and
+// gives the limiter its deadline
 func TestUsage(t *testing.T) {
 	dir := t.TempDir()
 	if err := addUsage(dir, "a/b", "2026-10-12", 90*time.Second); err != nil {
@@ -227,6 +233,7 @@ func callAs(t *testing.T, bin, conf string, env ...string) (*caller, *exec.Cmd) 
 	return newCaller(t, m), cmd
 }
 
+// waitExit: fails the test unless modemmenu ends within 10 seconds
 func waitExit(t *testing.T, cmd *exec.Cmd) {
 	t.Helper()
 	done := make(chan error, 1)
@@ -238,6 +245,8 @@ func waitExit(t *testing.T, cmd *exec.Cmd) {
 	}
 }
 
+// TestAccessLine: on a line, a caller's menu shows only what they may
+// use, and what is not shown cannot be chosen
 func TestAccessLine(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "modemmenu")
@@ -336,6 +345,8 @@ func TestAccessLine(t *testing.T) {
 	}
 }
 
+// TestTimeLimits: on a line, the daily limit and the time limit hang
+// the caller up
 func TestTimeLimits(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "modemmenu")
@@ -438,6 +449,8 @@ command = exec sleep 30
 	}
 }
 
+// TestDurations: time_warning's list of durations, longest first, and
+// none for 0 or none
 func TestDurations(t *testing.T) {
 	for in, want := range map[string]string{
 		"5m 1m":    "[5m0s 1m0s]",

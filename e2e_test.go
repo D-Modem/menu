@@ -74,6 +74,8 @@ func newTermCaller(t *testing.T, m io.ReadWriter, answer func([]byte) []byte) *c
 	return c
 }
 
+// expect: what the line says up to and including s; the test fails
+// after 10 seconds without it
 func (c *caller) expect(s string) string {
 	c.t.Helper()
 	timeout := time.After(10 * time.Second)
@@ -96,10 +98,13 @@ func (c *caller) expect(s string) string {
 	return got
 }
 
+// send: s typed on the line
 func (c *caller) send(s string) {
 	c.m.Write([]byte(s))
 }
 
+// TestLine: a call on a pty: login, the menu, and an rlogin BBS that
+// gets the caller's credentials
 func TestLine(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "modemmenu")

@@ -151,6 +151,8 @@ static int address(u_int32_t addr)
 	return logged_in ? 1 : -1;
 }
 
+/* pppd calls this when it loads the plugin: its option, and the PAP and
+   address hooks */
 void plugin_init(void)
 {
 	add_options(options);

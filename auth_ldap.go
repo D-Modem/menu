@@ -40,6 +40,7 @@ type ldapAuth struct {
 	passwordChange string
 }
 
+// newLDAPAuth: the [ldap] backend from its section, checked
 func newLDAPAuth(s *section) (authenticator, error) {
 	var err error
 	a := &ldapAuth{
@@ -88,8 +89,10 @@ func newLDAPAuth(s *section) (authenticator, error) {
 	return a, nil
 }
 
+// name: the backend's name, for {auth} and the log
 func (a *ldapAuth) name() string { return "ldap" }
 
+// authenticate: a bind as the user (found by search, or by bind_dn)
 func (a *ldapAuth) authenticate(ctx context.Context, user, password string) error {
 	conn, _, err := a.bindUser(user, password)
 	if conn != nil {
@@ -215,6 +218,8 @@ func adPasswordChange(dn, old, new string) *ldap.ModifyRequest {
 	return m
 }
 
+// adPassword: a password as AD's unicodePwd takes it, in double quotes
+// and UTF-16LE
 func adPassword(pw string) string {
 	u := utf16.Encode([]rune(`"` + pw + `"`))
 	b := make([]byte, 2*len(u))

@@ -12,6 +12,7 @@ import (
 	"testing"
 )
 
+// TestPPPFrame: what starts a PPP frame, and what does not
 func TestPPPFrame(t *testing.T) {
 	for in, want := range map[string]bool{
 		"\x7e\xff\x7d\x23\xc0\x21": true, // 0xFF 0x03 (escaped) LCP

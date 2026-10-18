@@ -152,6 +152,7 @@ func runExec(t *term, cfg *settings, it *menuItem, s *session, deadline time.Tim
 	return err
 }
 
+// credential: a user's uid, gid and groups, to run a program as them
 func credential(u *user.User) (*syscall.Credential, error) {
 	uid, err := strconv.ParseUint(u.Uid, 10, 32)
 	if err != nil {
@@ -189,6 +190,7 @@ func loginShell(name string) string {
 	return ""
 }
 
+// setEnv: env with k set to v, replaced if it was there
 func setEnv(env []string, k, v string) []string {
 	for i, e := range env {
 		if strings.HasPrefix(e, k+"=") {
@@ -205,6 +207,8 @@ var (
 	child   *os.Process
 )
 
+// running: the program the line is handed to (nil: none), for the
+// signal handler
 func running(p *os.Process) {
 	childMu.Lock()
 	child = p
@@ -373,6 +377,8 @@ const (
 	optTType  = 24
 )
 
+// writeTo: b written to w, not in the middle of a reply to the server
+// (a nil telnet writes as is)
 func (tn *telnet) writeTo(w io.Writer, b []byte) (int, error) {
 	if tn == nil {
 		return w.Write(b)
@@ -382,6 +388,7 @@ func (tn *telnet) writeTo(w io.Writer, b []byte) (int, error) {
 	return w.Write(b)
 }
 
+// send: bytes to the server
 func (tn *telnet) send(b ...byte) {
 	tn.writeTo(tn.conn, b)
 }
@@ -450,6 +457,7 @@ func (tn *telnet) decode(b []byte) []byte {
 	return out
 }
 
+// option: the answer to the server's WILL, WONT, DO or DONT
 func (tn *telnet) option(cmd, opt byte) {
 	switch cmd {
 	case will:
@@ -485,6 +493,7 @@ func (tn *telnet) option(cmd, opt byte) {
 	}
 }
 
+// subneg: the answer to a subnegotiation: the terminal type when asked
 func (tn *telnet) subneg() {
 	// TTYPE SEND: TTYPE IS <terminal>
 	if len(tn.sb) >= 2 && tn.sb[0] == optTType && tn.sb[1] == 1 {

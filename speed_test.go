@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// TestSpeed: {speed} from the connect rates
 func TestSpeed(t *testing.T) {
 	for rate, want := range map[string]string{
 		"33600/33600": "33600 bit/s",

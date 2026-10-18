@@ -21,6 +21,7 @@ type section struct {
 	line map[string]int
 }
 
+// get: key's value, or def when it is not set
 func (s *section) get(key, def string) string {
 	if v, ok := s.vals[key]; ok {
 		return v
@@ -28,11 +29,13 @@ func (s *section) get(key, def string) string {
 	return def
 }
 
+// has: whether key is set
 func (s *section) has(key string) bool {
 	_, ok := s.vals[key]
 	return ok
 }
 
+// bool: key as yes/no (true/false, on/off, 1/0), or def
 func (s *section) bool(key string, def bool) (bool, error) {
 	v, ok := s.vals[key]
 	if !ok {
@@ -47,6 +50,7 @@ func (s *section) bool(key string, def bool) (bool, error) {
 	return def, fmt.Errorf("[%s] %s: %q is not yes or no", s.name, key, v)
 }
 
+// int: key as a number, or def
 func (s *section) int(key string, def int) (int, error) {
 	v, ok := s.vals[key]
 	if !ok {
@@ -83,6 +87,7 @@ type ini struct {
 	byName   map[string]*section
 }
 
+// section: the section by name; an empty one if there is none
 func (c *ini) section(name string) *section {
 	if s, ok := c.byName[name]; ok {
 		return s
@@ -90,6 +95,8 @@ func (c *ini) section(name string) *section {
 	return &section{name: name, vals: map[string]string{}, line: map[string]int{}}
 }
 
+// parseINI: the configuration file's sections and keys (keys in lower
+// case, inline comments and surrounding quotes taken off values)
 func parseINI(path string) (*ini, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -227,6 +234,7 @@ func unescape(s string) string {
 	return b.String()
 }
 
+// fields: a list split at commas and whitespace
 func fields(s string) []string {
 	return strings.FieldsFunc(s, func(r rune) bool {
 		return r == ',' || r == ' ' || r == '\t'

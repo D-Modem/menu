@@ -96,6 +96,8 @@ type settings struct {
 	backends   []authenticator
 }
 
+// loadSettings: the configuration file, every section loaded and
+// checked
 func loadSettings(path string) (*settings, error) {
 	c, err := parseINI(path)
 	if err != nil {
@@ -251,6 +253,7 @@ func loadSettings(path string) (*settings, error) {
 	return s, nil
 }
 
+// loadItem: an [item ...] section, checked
 func loadItem(name string, sec *section) (*menuItem, error) {
 	var err error
 	it := &menuItem{name: name}
@@ -373,6 +376,7 @@ func crlf(s string) string {
 	return strings.ReplaceAll(s, "\n", "\r\n")
 }
 
+// contains: whether s is in list
 func contains(list []string, s string) bool {
 	for _, v := range list {
 		if v == s {
@@ -382,6 +386,7 @@ func contains(list []string, s string) bool {
 	return false
 }
 
+// loadServer: [server], for modemmenu -serve
 func loadServer(sec *section) (*serverSettings, error) {
 	var err error
 	srv := &serverSettings{

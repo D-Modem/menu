@@ -30,6 +30,8 @@ func lookupNSS(name string) (*account, error) {
 	return &account{name: u.Username, uid: uid, gid: gid}, nil
 }
 
+// inGroupsNSS: whether the account is in any of the groups, by the
+// name service (/etc/group, LDAP via NSS...)
 func inGroupsNSS(acct *account, groups []string) (bool, error) {
 	u, err := user.Lookup(acct.name)
 	if err != nil {

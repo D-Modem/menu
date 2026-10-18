@@ -24,6 +24,8 @@ type itemAccess struct {
 	guest     bool     // guests see it (they see nothing else)
 }
 
+// loadItemAccess: an item's access rules (users, groups, callerids,
+// min_baud, guest), its caller ID patterns checked
 func loadItemAccess(name string, sec *section) (itemAccess, error) {
 	var a itemAccess
 	var err error
@@ -89,6 +91,8 @@ type limitSettings struct {
 	warningMessage string
 }
 
+// loadAccess: the time limits and warnings of [general], [groups],
+// [guest], [signup] and [callerid] and its [number ...] sections
 func loadAccess(c *ini, s *settings) error {
 	var err error
 	g := c.section("general")

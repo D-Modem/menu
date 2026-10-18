@@ -25,14 +25,18 @@ int (*pap_auth_hook)(char *, char *, char **, struct wordlist **, struct wordlis
 int (*allowed_address_hook)(u_int32_t);
 static option_t *opts;
 
+/* pppd's add_options: the plugin's options kept */
 void add_options(option_t *o) { opts = o; }
 
+/* a log line of the plugin's, printed with its level */
 static void logline(const char *level, const char *fmt, va_list ap)
 {
 	char buf[1024];
 	vsnprintf(buf, sizeof(buf), fmt, ap);
 	printf("LOG %s: %s\n", level, buf);
 }
+/* pppd's log functions (info, notice, warn, error, dbglog), each printing
+   through logline */
 #define LOGFN(name) void name(char *fmt, ...) \
 	{ va_list ap; va_start(ap, fmt); logline(#name, fmt, ap); va_end(ap); }
 LOGFN(info)
@@ -41,6 +45,7 @@ LOGFN(warn)
 LOGFN(error)
 LOGFN(dbglog)
 
+/* the plugin loaded and initialized, one PAP login, the result printed */
 int main(int argc, char **argv)
 {
 	void *h;

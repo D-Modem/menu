@@ -14,6 +14,8 @@ import (
 	"testing"
 )
 
+// TestFileChangePassword: the users file's line of the user changed,
+// the others and the notes after the hash kept
 func TestFileChangePassword(t *testing.T) {
 	dir := t.TempDir()
 	users := filepath.Join(dir, "users")
@@ -58,6 +60,7 @@ func TestFileChangePassword(t *testing.T) {
 	}
 }
 
+// TestSQLChangePassword: update_query changes the user's row only
 func TestSQLChangePassword(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "users.db")
@@ -94,6 +97,7 @@ func TestSQLChangePassword(t *testing.T) {
 	}
 }
 
+// TestPasswdLine: on a line, a mode = passwd item changes the password
 func TestPasswdLine(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "modemmenu")

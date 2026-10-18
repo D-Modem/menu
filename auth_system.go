@@ -30,6 +30,8 @@ type account struct {
 	uid, gid int
 }
 
+// newSystemAuth: the [system] backend (PAM and the name service);
+// an error when this modemmenu is built without PAM
 func newSystemAuth(s *section) (authenticator, error) {
 	var err error
 	a := &systemAuth{
@@ -51,8 +53,11 @@ func newSystemAuth(s *section) (authenticator, error) {
 	return a, nil
 }
 
+// name: the backend's name, for {auth} and the log
 func (a *systemAuth) name() string { return "system" }
 
+// authenticate: the account looked up, min_uid, root and groups
+// checked, then the password by PAM
 func (a *systemAuth) authenticate(_ context.Context, user, password string) error {
 	acct, err := a.lookup(user)
 	if err != nil {

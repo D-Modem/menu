@@ -32,8 +32,11 @@ import (
 
 var logger = log.New(io.Discard, "", 0)
 
+// logf: a line in the log ([general] log)
 func logf(format string, args ...any) { logger.Printf(format, args...) }
 
+// main: the flags; then -hash, -check, -authd or -serve, or a call on
+// stdin and stdout
 func main() {
 	config := flag.String("config", "/etc/asterisk/modemmenu.conf", "the configuration `file`")
 	rate := flag.String("rate", os.Getenv("DMODEM_RATE"), "the connect `rate`, tx/rx bit/s (default $DMODEM_RATE)")
@@ -90,6 +93,8 @@ func main() {
 // terminated: SIGTERM or SIGHUP came
 var terminated atomic.Bool
 
+// handleSignals: a hangup (SIGHUP, SIGTERM) passed to the selection
+// running, or the end of modemmenu; ^C and ^\ dropped
 func handleSignals() {
 	// a selection on a cooked line gets ^C and ^\ from the terminal, and
 	// so would we: caught (not ignored, which the selection would inherit)
@@ -118,6 +123,7 @@ func handleSignals() {
 	}()
 }
 
+// openLog: the log: none, syslog, or a file
 func openLog(dest string) error {
 	switch dest {
 	case "", "none":
@@ -138,6 +144,8 @@ func openLog(dest string) error {
 	return nil
 }
 
+// printHash: -hash: a password read (without echo on a terminal) and
+// its bcrypt hash printed; the exit status
 func printHash() int {
 	fmt.Fprint(os.Stderr, "Password: ")
 	var pw []byte
@@ -255,6 +263,7 @@ func run(t *term, s *settings, sess *session) int {
 	return 0
 }
 
+// describe: an error for the log, "done" for none
 func describe(err error) string {
 	if err == nil {
 		return "done"
@@ -465,6 +474,7 @@ func (s *settings) selects(choice string) *menuItem {
 	return selectFrom(s.items, choice)
 }
 
+// selectFrom: the item of items a choice (upper case) selects, or nil
 func selectFrom(items []*menuItem, choice string) *menuItem {
 	for _, it := range items {
 		if contains(it.choices, choice) {

@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+// TestHeader: the session header written and read back, and the
+// environment a session gets from it, trusted or not
 func TestHeader(t *testing.T) {
 	a, b := net.Pipe()
 	s := newSession("33600/31200", "555\n1000", "", time.Unix(1791666309, 0))

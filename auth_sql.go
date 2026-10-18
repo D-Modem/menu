@@ -43,6 +43,8 @@ var sqlDrivers = map[string]string{
 	"sqlite3":    "sqlite",
 }
 
+// newSQLAuth: the [sql] backend, its database opened (not yet
+// connected); args names the query's parameters (user, password)
 func newSQLAuth(s *section) (authenticator, error) {
 	var err error
 	a := &sqlAuth{
@@ -86,8 +88,11 @@ func newSQLAuth(s *section) (authenticator, error) {
 	return a, nil
 }
 
+// name: the backend's name, for {auth} and the log
 func (a *sqlAuth) name() string { return "sql" }
 
+// authenticate: the query's row for the user, its first column the
+// stored hash checked against the password (hash = none: a row is enough)
 func (a *sqlAuth) authenticate(ctx context.Context, user, password string) error {
 	ctx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()
@@ -132,4 +137,5 @@ func (a *sqlAuth) authenticate(ctx context.Context, user, password string) error
 // discard scans and drops a column of any type
 type discard struct{}
 
+// Scan: drops the column (sql.Scanner)
 func (*discard) Scan(any) error { return nil }

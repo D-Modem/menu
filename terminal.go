@@ -35,6 +35,7 @@ type terminalSettings struct {
 	timeout time.Duration
 }
 
+// loadTerminal: [terminal], checked
 func loadTerminal(sec *section) (terminalSettings, error) {
 	var err error
 	ts := terminalSettings{
@@ -86,6 +87,7 @@ type vtInfo struct {
 	cterm      string // SyncTERM's CTerm version
 }
 
+// parseVT: what an ANSI terminal answered to queryVT
 func parseVT(reply []byte) vtInfo {
 	var in vtInfo
 	// the answerback is what came before the first escape sequence
@@ -119,6 +121,7 @@ func parseVT(reply []byte) vtInfo {
 	return in
 }
 
+// numbers: a sequence's ;-separated parameters (32 at most)
 func numbers(s string) []int {
 	var out []int
 	for _, f := range strings.Split(s, ";") {
@@ -133,6 +136,7 @@ func numbers(s string) []int {
 	return out
 }
 
+// printable: s's printable ASCII, at most max bytes, trimmed
 func printable(s string, max int) string {
 	var b strings.Builder
 	for _, r := range s {

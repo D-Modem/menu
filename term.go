@@ -49,6 +49,8 @@ func (t *term) unread(b ...byte) {
 	t.pending = append(append([]byte{}, b...), t.pending...)
 }
 
+// newTerm: the line on in and out, made raw if it is a terminal (its
+// mode before kept for close)
 func newTerm(in, out *os.File) *term {
 	t := &term{in: int(in.Fd()), out: int(out.Fd())}
 	// a terminal of our own (a getty, a test from a console): raw as the
@@ -62,6 +64,8 @@ func newTerm(in, out *os.File) *term {
 	return t
 }
 
+// makeRaw: t as app_dmodem's pty is: no echo, no line editing, no
+// translation, 8 bits
 func makeRaw(t *unix.Termios) {
 	t.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP |
 		unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
@@ -103,12 +107,14 @@ func (t *term) setMode(mode string) *unix.Termios {
 	return &before
 }
 
+// restoreMode: the line's mode as setMode found it
 func (t *term) restoreMode(tio *unix.Termios) {
 	if tio != nil {
 		unix.IoctlSetTermios(t.in, unix.TCSETS, tio)
 	}
 }
 
+// close: the line's mode as newTerm found it
 func (t *term) close() {
 	if t.saved != nil {
 		unix.IoctlSetTermios(t.in, unix.TCSETSW, t.saved)

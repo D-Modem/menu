@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+// TestDropfileFormats: DOOR32.SYS, DOOR.SYS (52 and 31 lines) and
+// DORINFO1.DEF, line by line
 func TestDropfileFormats(t *testing.T) {
 	sec := &section{name: "dropfile", vals: map[string]string{"bbs_name": "Test BBS", "sysop": "Ada Lovelace"}}
 	df, err := loadDropfile(sec)
@@ -83,6 +85,8 @@ func TestDropfileFormats(t *testing.T) {
 	}
 }
 
+// TestNodesAndUserNumbers: nodes are taken and let go under locks, and
+// each user keeps one number
 func TestNodesAndUserNumbers(t *testing.T) {
 	dir := t.TempDir()
 	n1, l1, err := takeNode(dir, 2)
@@ -263,6 +267,8 @@ header = yes
 	waitExit(t, cmd)
 }
 
+// TestHeaderTimeLeft: the time left goes through the session header and
+// becomes the downstream menu's limit
 func TestHeaderTimeLeft(t *testing.T) {
 	a, b := net.Pipe()
 	s := newSession("", "", "", time.Now())
@@ -282,6 +288,8 @@ func TestHeaderTimeLeft(t *testing.T) {
 	}
 }
 
+// TestDropfileSettings: [dropfile] and dropfile = settings that load,
+// and those refused
 func TestDropfileSettings(t *testing.T) {
 	dir := t.TempDir()
 	users := filepath.Join(dir, "users")

@@ -124,6 +124,7 @@ func (s *settings) nameTaken(name string) string {
 	return ""
 }
 
+// fileHasUser: whether the users file has name (in any case)
 func fileHasUser(path, name string) (bool, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -133,6 +134,7 @@ func fileHasUser(path, name string) (bool, error) {
 	return scanUsers(f, name)
 }
 
+// scanUsers: whether the open users file has name (in any case)
 func scanUsers(f *os.File, name string) (bool, error) {
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {

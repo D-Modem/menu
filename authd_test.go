@@ -13,6 +13,8 @@ import (
 	"testing"
 )
 
+// authSettings: settings with an auth socket in a test directory, and
+// the socket's path
 func authSettings(t *testing.T, extra string) (*settings, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -30,6 +32,7 @@ func authSettings(t *testing.T, extra string) (*settings, string) {
 	return s, sock
 }
 
+// ask: one request on the auth socket, its answer
 func ask(t *testing.T, sock, body string) authReply {
 	t.Helper()
 	c, err := net.Dial("unix", sock)
@@ -91,6 +94,7 @@ func TestAuthdAllowUsers(t *testing.T) {
 	}
 }
 
+// TestAuthdSettings: [authd] settings that are refused
 func TestAuthdSettings(t *testing.T) {
 	for extra, want := range map[string]string{
 		"listen = tcp:127.0.0.1:9\n":   "a unix socket only",

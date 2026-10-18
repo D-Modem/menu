@@ -47,6 +47,7 @@ type dropfileSettings struct {
 	maxNodes       int
 }
 
+// loadDropfile: [dropfile], checked
 func loadDropfile(sec *section) (dropfileSettings, error) {
 	var err error
 	d := dropfileSettings{
@@ -102,6 +103,7 @@ var dropfileNames = map[string]string{
 	"dorinfo1.def": "DORINFO1.DEF", "dorinfo#.def": "DORINFO#.DEF",
 }
 
+// loadItemDropfiles: an item's dropfile = names, as the files' names
 func loadItemDropfiles(name string, sec *section) ([]string, error) {
 	var out []string
 	for _, f := range fields(strings.ToLower(sec.get("dropfile", ""))) {
@@ -133,6 +135,8 @@ type dropfiles struct {
 	lock    *os.File
 }
 
+// close: the files removed (and their directory if it was made for
+// them), the node let go
 func (d *dropfiles) close() {
 	for _, f := range d.files {
 		os.Remove(f)
@@ -242,6 +246,7 @@ func (in dropfileInfo) rate() string {
 	return "0"
 }
 
+// date: a date as the files write it, MM/DD/YY (or MM/DD/YYYY)
 func (in dropfileInfo) date(t time.Time) string {
 	if in.df.fourDigitYears {
 		return t.Format("01/02/2006")

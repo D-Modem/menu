@@ -19,6 +19,7 @@ import (
 
 const callersKept = 200
 
+// callersPath: the last callers' file in state_dir
 func callersPath(dir string) string { return filepath.Join(dir, "callers") }
 
 // recordCaller: sess's login into the list, under a lock (calls at once)

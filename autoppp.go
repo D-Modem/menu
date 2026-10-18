@@ -40,6 +40,7 @@ type autopppSettings struct {
 	item    string // whose access rules a PPP login must pass ("": none)
 }
 
+// loadAutoPPP: [autoppp]; enabled needs a command
 func loadAutoPPP(sec *section) (autopppSettings, error) {
 	var err error
 	a := autopppSettings{command: sec.get("command", ""), item: sec.get("item", "")}
@@ -123,13 +124,16 @@ func startPPPAuth(s *settings, sess *session) (*pppAuth, error) {
 	return a, nil
 }
 
+// path: the auth socket's path, for {auth_socket}
 func (a *pppAuth) path() string { return filepath.Join(a.dir, "auth.sock") }
 
+// close: the socket closed and its directory removed
 func (a *pppAuth) close() {
 	a.ln.Close()
 	os.RemoveAll(a.dir)
 }
 
+// serve: each connection to the socket answered, until close
 func (a *pppAuth) serve() {
 	for {
 		conn, err := a.ln.Accept()
