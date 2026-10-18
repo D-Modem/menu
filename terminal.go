@@ -18,9 +18,6 @@ import (
 // What the caller's terminal is, asked as bbs-sec asks it, before the
 // banner:
 //
-//   - TN3270 ([terminal] tn3270 set): telnet's DO TTYPE.  A client that
-//     speaks telnet answers with its terminal type; IBM-3278-2-E and the
-//     like are 3270s, which get the tn3270 server instead of the login.
 //   - ANSI: the cursor moved as far as it goes and its position asked for
 //     (CSI 6n).  An ANSI terminal answers, and the answer is its size.
 //   - VT52, when not ANSI: ESC Z, which a VT52 answers with ESC / and a
@@ -33,23 +30,17 @@ import (
 
 // terminalSettings: [terminal]
 type terminalSettings struct {
-	detect       bool   // ask: ANSI, VT52, an ANSI terminal's identity
-	petscii      string // auto (a terminal that is not ANSI may be one), yes (every caller), no
-	tn3270       string // where a TN3270 client goes: tcp:host:port or a socket's path ("": not asked)
-	tn3270Header bool   // the session header ahead of it
-	timeout      time.Duration
+	detect  bool   // ask: ANSI, VT52, an ANSI terminal's identity
+	petscii string // auto (a terminal that is not ANSI may be one), yes (every caller), no
+	timeout time.Duration
 }
 
 func loadTerminal(sec *section) (terminalSettings, error) {
 	var err error
 	ts := terminalSettings{
 		petscii: strings.ToLower(sec.get("petscii", "auto")),
-		tn3270:  sec.get("tn3270", ""),
 	}
 	if ts.detect, err = sec.bool("detect", true); err != nil {
-		return ts, err
-	}
-	if ts.tn3270Header, err = sec.bool("tn3270_header", false); err != nil {
 		return ts, err
 	}
 	if ts.timeout, err = sec.duration("timeout", 2*time.Second); err != nil {
@@ -60,44 +51,7 @@ func loadTerminal(sec *section) (terminalSettings, error) {
 	default:
 		return ts, fmt.Errorf("[terminal] petscii: %q (auto, yes or no)", ts.petscii)
 	}
-	if ts.tn3270 != "" {
-		if _, err := tn3270Item(ts); err != nil {
-			return ts, err
-		}
-	}
 	return ts, nil
-}
-
-// tn3270Item: the tn3270 server as an item of mode tcp, to hand the
-// line to
-func tn3270Item(ts terminalSettings) (*menuItem, error) {
-	it := &menuItem{name: "tn3270", mode: "tcp", header: ts.tn3270Header, timeout: 10 * time.Second}
-	if addr, ok := strings.CutPrefix(ts.tn3270, "tcp:"); ok {
-		host, port, err := splitHostPort(addr)
-		if err != nil {
-			return nil, fmt.Errorf("[terminal] tn3270: %v", err)
-		}
-		it.host, it.port = host, port
-		return it, nil
-	}
-	if !strings.HasPrefix(ts.tn3270, "/") {
-		return nil, fmt.Errorf("[terminal] tn3270: %q (tcp:host:port, or a unix socket's absolute path)", ts.tn3270)
-	}
-	it.path = ts.tn3270
-	return it, nil
-}
-
-func splitHostPort(addr string) (string, int, error) {
-	i := strings.LastIndexByte(addr, ':')
-	if i < 0 {
-		return "", 0, fmt.Errorf("%q: no port", addr)
-	}
-	port, err := strconv.Atoi(addr[i+1:])
-	if err != nil || port <= 0 || port > 65535 {
-		return "", 0, fmt.Errorf("%q: bad port", addr)
-	}
-	host := strings.TrimSuffix(strings.TrimPrefix(addr[:i], "["), "]")
-	return host, port, nil
 }
 
 // the questions, and the patterns of their answers
@@ -323,19 +277,6 @@ func petsciiTelltale(b byte) bool {
 	return false
 }
 
-// telnet's terminal type of a 3270 (IBM-3278-2-E, IBM-DYNAMIC...), not
-// IBM's ASCII terminals (IBM-3151)
-var tn3270Pattern = regexp.MustCompile(`^IBM-(327[789]|DYNAMIC)`)
-
-// petscii terminal types, as telnet clients and upstream menus name them
-func petsciiName(tt string) bool {
-	switch strings.ToLower(tt) {
-	case "petscii", "c64", "c128", "commodore", "cbm":
-		return true
-	}
-	return false
-}
-
 // prober: the questions of one call, and what came that was no answer
 // (what the caller typed, a PPP frame) to be read again after
 type prober struct {
@@ -450,78 +391,9 @@ func (p *prober) identify(timeout time.Duration) (vtInfo, error) {
 	return in, nil
 }
 
-// telnet: a telnet client's terminal type, "" when what is on the line
-// does not speak telnet
-func (p *prober) ttype(timeout time.Duration) (string, error) {
-	if err := p.t.writeRaw(string([]byte{iac, do, optTType})); err != nil {
-		return "", err
-	}
-	reply := func(cmd byte) []byte { return []byte{iac, cmd, optTType} }
-	got, err := p.collect(timeout, 64, func(b []byte) bool {
-		return bytes.Contains(b, reply(will)) || bytes.Contains(b, reply(wont))
-	})
-	if err != nil {
-		return "", err
-	}
-	if !bytes.Contains(got, reply(will)) {
-		if !bytes.Contains(got, reply(wont)) {
-			// not telnet: IAC DO showed as two characters
-			p.t.writeRaw("\r   \r")
-		}
-		p.keep(stripTelnet(got))
-		return "", nil
-	}
-	p.keep(stripTelnet(got))
-	// SB TTYPE SEND; the answer SB TTYPE IS <type> SE
-	if err := p.t.writeRaw(string([]byte{iac, sb, optTType, 1, iac, se})); err != nil {
-		return "", err
-	}
-	got, err = p.collect(timeout, 128, func(b []byte) bool { return bytes.Contains(b, []byte{iac, se}) })
-	if err != nil {
-		return "", err
-	}
-	var tt string
-	if i := bytes.Index(got, []byte{iac, sb, optTType, 0}); i >= 0 {
-		rest := got[i+4:]
-		if j := bytes.Index(rest, []byte{iac, se}); j >= 0 {
-			tt = printable(string(rest[:j]), 40)
-		}
-	}
-	p.keep(stripTelnet(got))
-	return tt, nil
-}
-
-// stripTelnet: the bytes without telnet's commands
-func stripTelnet(b []byte) []byte {
-	var out []byte
-	for i := 0; i < len(b); i++ {
-		if b[i] != iac || i+1 >= len(b) {
-			out = append(out, b[i])
-			continue
-		}
-		switch c := b[i+1]; {
-		case c == iac:
-			out = append(out, iac)
-			i++
-		case c >= will && c <= dont:
-			i += 2
-		case c == sb:
-			j := bytes.Index(b[i:], []byte{iac, se})
-			if j < 0 {
-				return out
-			}
-			i += j + 1
-		default:
-			i++
-		}
-	}
-	return out
-}
-
 // detectTerminal: what the caller's terminal is, in sess (Terminal, Term,
-// TermName, Rows, Cols), the line set for it; true for a TN3270 client,
-// the tn3270 server's
-func detectTerminal(t *term, s *settings, sess *session) (bool, error) {
+// TermName, Rows, Cols), the line set for it
+func detectTerminal(t *term, s *settings, sess *session) error {
 	ts := s.terminal
 	defer func() {
 		if sess.Terminal == "petscii" {
@@ -537,52 +409,35 @@ func detectTerminal(t *term, s *settings, sess *session) (bool, error) {
 	switch {
 	case sess.Terminal != "":
 		// an upstream menu said
-		return false, nil
+		return nil
 	case ts.petscii == "yes":
 		sess.Terminal, sess.Term, sess.Rows, sess.Cols = "petscii", "dumb", "25", "40"
-		return false, nil
+		return nil
 	}
 	p := &prober{t: t}
 	defer p.done()
-	if ts.tn3270 != "" {
-		tt, err := p.ttype(ts.timeout)
-		if err != nil {
-			return false, err
-		}
-		switch {
-		case tt == "":
-		case tn3270Pattern.MatchString(strings.ToUpper(tt)):
-			sess.Terminal, sess.TermName = "tn3270", tt
-			return true, nil
-		case petsciiName(tt):
-			sess.Terminal, sess.Term, sess.TermName, sess.Rows, sess.Cols = "petscii", "dumb", tt, "25", "40"
-			return false, nil
-		default:
-			sess.TermName = tt
-		}
-	}
 	if !ts.detect || p.ppp {
 		// not asked: perhaps a Commodore, whose keys will tell
 		t.watchPETSCII = ts.petscii == "auto" && !p.ppp
-		return false, nil
+		return nil
 	}
 	ansi, rows, cols, err := p.ansi(ts.timeout)
 	if err != nil || p.ppp {
-		return false, err
+		return err
 	}
 	if !ansi {
 		is52, err := p.vt52(ts.timeout / 2)
 		if err != nil || p.ppp {
-			return false, err
+			return err
 		}
 		if is52 {
 			sess.Terminal, sess.Term, sess.TermName, sess.Rows, sess.Cols = "vt52", "vt52", "VT52", "24", "80"
-			return false, nil
+			return nil
 		}
 		sess.Terminal, sess.Term = "ascii", "dumb"
 		// perhaps a Commodore: its keys will tell
 		t.watchPETSCII = ts.petscii == "auto"
-		return false, nil
+		return nil
 	}
 	sess.Terminal, sess.Term = "ansi", "ansi"
 	if rows > 0 && cols > 0 {
@@ -590,7 +445,7 @@ func detectTerminal(t *term, s *settings, sess *session) (bool, error) {
 	}
 	in, err := p.identify(ts.timeout)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if n := in.name(); n != "" {
 		sess.TermName = n
@@ -599,7 +454,7 @@ func detectTerminal(t *term, s *settings, sess *session) (bool, error) {
 	if in.level() > 0 || in.emulator() {
 		sess.Terminal = "vt"
 	}
-	return false, nil
+	return nil
 }
 
 // becomePETSCII: the caller has a Commodore after all
@@ -722,38 +577,4 @@ func petsciiIn(c byte) byte {
 		return 0x7f
 	}
 	return c
-}
-
-// tn3270: a TN3270 client to the tn3270 server, until either goes; the
-// server asks for the terminal type again, as from the start
-func tn3270(t *term, s *settings, sess *session) int {
-	it, err := tn3270Item(s.terminal)
-	if err != nil {
-		logf("tn3270: %v", err)
-		return 1
-	}
-	logf("tn3270 %s to %s %v", sess.TermName, s.terminal.tn3270, sess)
-	// TTYPE off again (its WONT is the server's to ignore)
-	p := &prober{t: t}
-	if err := t.writeRaw(string([]byte{iac, dont, optTType})); err != nil {
-		return 1
-	}
-	got, err := p.collect(s.terminal.timeout, 64, func(b []byte) bool {
-		return bytes.Contains(b, []byte{iac, wont, optTType})
-	})
-	if err != nil {
-		return 1
-	}
-	if i := bytes.Index(got, []byte{iac, wont, optTType}); i >= 0 {
-		got = append(got[:i:i], got[i+3:]...)
-	}
-	t.unread(got...)
-	before := t.setMode("raw")
-	defer t.restoreMode(before)
-	if err := runTCP(t, it, sess, time.Time{}); err != nil && !errors.Is(err, errHangup) {
-		logf("tn3270: %v", err)
-		return 1
-	}
-	logf("tn3270 ended %v", sess)
-	return 0
 }

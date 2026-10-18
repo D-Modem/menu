@@ -349,25 +349,16 @@ Before the banner, modemmenu asks the caller's terminal what it is, as
 [bbs-sec](https://github.com/Neo-Desktop/bbs-sec) does, and in this
 order:
 
-1. **TN3270** (only with `[terminal] tn3270` set): telnet's `DO TTYPE`.
-   A client that speaks telnet answers with its terminal type; a 3270's
-   (`IBM-3278-2-E`, `IBM-DYNAMIC`...) is handed to the tn3270 server
-   there (`tcp:host:port`, or a unix socket's path) instead of the login,
-   which asks for the terminal type again from the start.  A modem line
-   has no telnet of its own: this is for a TN3270 client that reaches
-   the modem through a telnet modem (a WiFi modem, tcpser) or a
-   serial-to-telnet bridge.  A terminal that is no telnet client shows
-   the question as two characters, which are wiped, after `timeout`.
-2. **ANSI**: the cursor sent as far down and right as it goes, and its
+1. **ANSI**: the cursor sent as far down and right as it goes, and its
    position asked for (`CSI 6n`).  An ANSI terminal answers, and the
    answer is its size.  Nothing shows on one that does; the question
    is wiped on one that does not.
-3. **VT52**, if not ANSI: `ESC Z`, which a VT52 answers `ESC / K`.
-4. **What an ANSI terminal is**: DEC's questions (the answerback, the
+2. **VT52**, if not ANSI: `ESC Z`, which a VT52 answers `ESC / K`.
+3. **What an ANSI terminal is**: DEC's questions (the answerback, the
    primary and secondary device attributes), xterm's version
    (XTVERSION) and SyncTERM's CTerm attributes.  A DEC VT220 says it is
    one; xterm says `XTerm(390)`; SyncTERM its CTerm version.
-5. **PETSCII**, if not ANSI: a Commodore 64 or 128 asks nothing and
+4. **PETSCII**, if not ANSI: a Commodore 64 or 128 asks nothing and
    answers nothing, so the login prompt watches its keys.  DEL, the
    cursor keys, the function keys and the shifted letters are bytes only
    a Commodore sends: one of them, and the prompt starts again in
@@ -387,7 +378,7 @@ and is the selection's:
 |---|---|---|
 | `{terminal}` | `MODEM_TERMINAL` | `vt` (an ANSI terminal that said what it is), `ansi`, `vt52`, `petscii`, `ascii`; empty when not asked |
 | `{term}` | `MODEM_TERM`, and `TERM` of exec items | a terminal type for it: `xterm`, `syncterm`, `vt100`, `vt220`... `vt520`, `ansi`, `vt52`, `dumb` |
-| `{term_name}` | `MODEM_TERM_NAME` | what it said it is: `XTerm(390)`, `VT220`, `SyncTERM (CTerm 1.316)`, its answerback, a telnet client's terminal type |
+| `{term_name}` | `MODEM_TERM_NAME` | what it said it is: `XTerm(390)`, `VT220`, `SyncTERM (CTerm 1.316)`, or its answerback |
 | `{rows}`, `{cols}` | `MODEM_ROWS`, `MODEM_COLS` | its size (40 by 25 for a Commodore), also set on the line for exec items (`stty size`) |
 
 E.g. `rlogin_terminal = {term}/{baud}` for a BBS that takes the type
@@ -401,13 +392,11 @@ downstream `modemmenu -serve` does not ask again.
 detect = yes        ; ask: ANSI, VT52, what an ANSI terminal is
 petscii = auto      ; auto: watch the login for a Commodore; yes: every caller is one; no
 timeout = 2s        ; for each question
-;tn3270 = tcp:127.0.0.1:3270  ; TN3270 clients to this server (empty: not asked)
-;tn3270_header = no ; the session header ahead of them
 ```
 
 The questions cost a moment on a terminal that answers (each ends with
 its answer) and `timeout` for each one it does not (2 s for ANSI, 1 s
-for VT52, and the `tn3270` question first when set).
+for VT52).
 
 ### Message of the day
 

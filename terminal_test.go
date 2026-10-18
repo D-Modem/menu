@@ -6,7 +6,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,13 +34,6 @@ func TestParseVT(t *testing.T) {
 		if in.name() != c.name || in.term() != c.term || in.level() != c.level {
 			t.Errorf("%s: %q %q level %d, want %q %q %d", c.what, in.name(), in.term(), in.level(), c.name, c.term, c.level)
 		}
-	}
-}
-
-func TestStripTelnet(t *testing.T) {
-	in := []byte("a\xff\xfb\x18b\xff\xfa\x18\x00ANSI\xff\xf0c\xff\xffd")
-	if got := string(stripTelnet(in)); got != "abc\xffd" {
-		t.Errorf("%q", got)
 	}
 }
 
@@ -260,66 +252,6 @@ func TestDetectPETSCII(t *testing.T) {
 	}
 	cmd.Process.Kill()
 	m.Close()
-}
-
-func TestTN3270(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ln.Close()
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			conn.Write([]byte("3270 HERE"))
-			b := make([]byte, 4)
-			for got := 0; got < 4; {
-				n, err := conn.Read(b[got:])
-				if err != nil {
-					break
-				}
-				got += n
-			}
-			if string(b) == "ping" {
-				conn.Write([]byte("pong"))
-			}
-			conn.Close()
-		}
-	}()
-	dir := t.TempDir()
-	bin, conf := terminalConf(t, dir, "tn3270 = tcp:"+ln.Addr().String())
-
-	// a 3270: to the server
-	m, s := testPty(t)
-	cmd := startOn(t, bin, conf, s)
-	cl := newTermCaller(t, m, replies("\xff\xfd\x18", "\xff\xfb\x18",
-		"\xff\xfa\x18\x01\xff\xf0", "\xff\xfa\x18\x00IBM-3278-2-E\xff\xf0", "\xff\xfe\x18", "\xff\xfc\x18"))
-	if got := cl.expect("3270 HERE"); strings.Contains(got, "login") {
-		t.Errorf("%q", got)
-	}
-	cl.send("ping")
-	cl.expect("pong")
-	waitExit(t, cmd)
-	m.Close()
-
-	// a telnet client of another terminal type, and a terminal that is
-	// no telnet client: the login
-	for _, answer := range []func([]byte) []byte{
-		replies("\xff\xfd\x18", "\xff\xfb\x18", "\xff\xfa\x18\x01\xff\xf0", "\xff\xfa\x18\x00ANSI\xff\xf0", "\x1b[6n", "\x1b[24;80R"),
-		replies(),
-	} {
-		m, s := testPty(t)
-		cmd := startOn(t, bin, conf, s)
-		cl := newTermCaller(t, m, answer)
-		cl.expect("login: ")
-		cl.send("alice\r")
-		cl.expect("Password: ")
-		cmd.Process.Kill()
-		m.Close()
-	}
 }
 
 // startOn: modemmenu on the slave of a pty

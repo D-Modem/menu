@@ -13,11 +13,6 @@ detect = yes
 petscii = auto
 ; for each question a terminal may not answer
 timeout = 2s
-; TN3270 clients (by telnet's terminal type, through a telnet modem or a
-; serial-to-telnet bridge) to a tn3270 server: tcp:host:port or a unix
-; socket's path; empty: not asked
-;tn3270 = tcp:127.0.0.1:3270
-;tn3270_header = no
 
 [menu]
 ;   mode = exec

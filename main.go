@@ -180,16 +180,12 @@ func run(t *term, s *settings, sess *session) int {
 		return 1
 	}
 	// what the terminal is, before anything is written for it
-	is3270, err := detectTerminal(t, s, sess)
-	if err != nil {
+	if err := detectTerminal(t, s, sess); err != nil {
 		logf("no login: %v (%v)", err, sess)
 		return 1
 	}
 	if sess.Terminal != "" {
 		logf("terminal %s %v", sess.describeTerminal(), sess)
-	}
-	if is3270 {
-		return tn3270(t, s, sess)
 	}
 	if t.write(expand(s.banner, sess.vars(false), nil)) != nil {
 		return 1
