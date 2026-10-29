@@ -28,7 +28,10 @@ For those who cannot or will not meet the AGPL's terms, for example to:
 A commercial license is granted by the D-Modem Authors, the copyright holders,
 on terms agreed with you (scope, term and fee).
 
-**To ask for one**, open an issue at
+Neo-Desktop (<https://github.com/Neo-Desktop>) is the point of contact
+for commercial licenses.
+
+**To ask for one**, contact Neo-Desktop, or open an issue at
 <https://github.com/D-Modem/menu/issues> titled "Commercial
 license", saying who you are and roughly what you want to do.  Keep
 anything confidential out of the issue: a private channel follows from
