@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  * SPDX-License-Identifier: AGPL-3.0-only
  *
  * host.c - pppd's side of the plugin interface, for testing modemmenu.so

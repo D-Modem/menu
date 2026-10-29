@@ -806,7 +806,7 @@ Two more tests run when their servers are given:
 
 ## License
 
-Copyright (C) 2026 Neo-Desktop.
+Copyright (C) 2026 D-Modem Authors.
 
 modemmenu is free software under the GNU Affero General Public License,
 version 3 only ([LICENSE](LICENSE), `SPDX-License-Identifier:
@@ -816,7 +816,7 @@ use remotely (callers included), comes with its complete source under
 the same license.
 
 For uses the AGPL does not allow (a product whose source you keep, a
-modified service without its source), Neo-Desktop offers commercial
+modified service without its source), the D-Modem Authors offer commercial
 licenses: see [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
 
 Contributions come with a contributor agreement that lets them be part

@@ -1,6 +1,6 @@
 # Commercial license
 
-modemmenu is Copyright (C) 2026 Neo-Desktop and is offered
+modemmenu is Copyright (C) 2026 D-Modem Authors and is offered
 under two licenses; you choose one.
 
 ## The GNU Affero General Public License, version 3 (the default)
@@ -25,10 +25,13 @@ For those who cannot or will not meet the AGPL's terms, for example to:
   the people who use it;
 - combine it with code under licenses that do not mix with the AGPL.
 
-A commercial license is granted by Neo-Desktop, the copyright holder,
+A commercial license is granted by the D-Modem Authors, the copyright holders,
 on terms agreed with you (scope, term and fee).
 
-**To ask for one**, open an issue at
+Neo-Desktop (<https://github.com/Neo-Desktop>) is the point of contact
+for commercial licenses.
+
+**To ask for one**, contact Neo-Desktop, or open an issue at
 <https://github.com/D-Modem/menu/issues> titled "Commercial
 license", saying who you are and roughly what you want to do.  Keep
 anything confidential out of the issue: a private channel follows from
