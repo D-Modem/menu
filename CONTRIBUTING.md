@@ -5,7 +5,7 @@ sending a change, run `make test` (see the README's Tests section).
 
 ## The contributor agreement
 
-modemmenu is offered under the AGPL-3.0 and, by Neo-Desktop, under
+modemmenu is offered under the AGPL-3.0 and, by the D-Modem Authors, under
 commercial licenses ([COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)).
 For contributions to be part of both, each one comes with this
 agreement.  By submitting a contribution (a pull request, a patch or
@@ -17,7 +17,7 @@ any other code or text meant for inclusion), you agree that:
    create, you have its permission to contribute, or it has waived those
    rights.
 2. You keep the copyright in your contribution.
-3. You grant Neo-Desktop, and those who receive the project from it, a
+3. You grant the D-Modem Authors, and those who receive the project from them, a
    perpetual, worldwide, non-exclusive, no-charge, royalty-free,
    irrevocable license to use, copy, modify, publicly display and
    perform, sublicense and distribute your contribution and works based
