@@ -1,4 +1,4 @@
-module github.com/Neo-Desktop/modemmenu
+module github.com/D-Modem/menu
 
 go 1.22
 

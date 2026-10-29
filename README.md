@@ -37,7 +37,7 @@ and time of the connection.
 ## Running it from app_dmodem
 
 `app_dmodem`, the Asterisk module of
-[D-Modem-RE](https://github.com/Neo-Desktop/D-Modem-RE) (`asterisk/`),
+[D-Modem-RE](https://github.com/D-Modem/D-Modem) (`asterisk/`),
 hands it the caller's line in one of two ways: it starts modemmenu for
 each call (`mode = exec`), or connects each call to one `modemmenu
 -serve` on a unix socket (`mode = unix`, below).
@@ -346,7 +346,7 @@ and `connect_message = ""` turns it off.  `{baud}`, `{tx_rate}` and
 ### The caller's terminal
 
 Before the banner, modemmenu asks the caller's terminal what it is, as
-[bbs-sec](https://github.com/Neo-Desktop/bbs-sec) does, and in this
+[bbs-sec](https://github.com/D-Modem/bbs) does, and in this
 order:
 
 1. **ANSI**: the cursor sent as far down and right as it goes, and its
