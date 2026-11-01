@@ -37,7 +37,7 @@ and time of the connection.
 ## Running it from app_dmodem
 
 `app_dmodem`, the Asterisk module of
-[D-Modem-RE](https://github.com/D-Modem/D-Modem) (`asterisk/`),
+[D-Modem-RE](https://github.com/D-Modem/D-Modem) (`frontend/asterisk/`),
 hands it the caller's line in one of two ways: it starts modemmenu for
 each call (`mode = exec`), or connects each call to one `modemmenu
 -serve` on a unix socket (`mode = unix`, below).
