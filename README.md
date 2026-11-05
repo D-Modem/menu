@@ -115,6 +115,13 @@ that died is replaced at start, a live one is not.
 systemd, which also makes `/run/modemmenu`.  Each connection is logged
 with its peer's pid and uid.
 
+### On FreePBX
+
+[freepbx/](freepbx/README.md) is a ready-made setup for FreePBX 16 and
+17 with D-Modem's FreePBX module: logins from a users file, one
+`modemmenu -serve` under systemd, and the D-Modem profile and inbound
+route that send calls to it.  `make install-freepbx` installs it.
+
 ## Building
 
 Go 1.22 or later:

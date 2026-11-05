@@ -3,18 +3,7 @@
 ;
 ; app_dmodem runs it on the caller's line (dmodem.conf):
 ;
-;   ; the caller's terminal, asked before the banner: ANSI (and its size),
-; VT52, what an ANSI terminal is (xterm, a VT220, SyncTERM...), and a
-; Commodore by its keys at the login.  {terminal}, {term}, {term_name},
-; {rows} and {cols} in the selections (TERM for exec items)
-[terminal]
-detect = yes
-; auto: watch the login for a Commodore's keys; yes: every caller is one
-petscii = auto
-; for each question a terminal may not answer
-timeout = 2s
-
-[menu]
+;   [menu]
 ;   mode = exec
 ;   command = exec /usr/local/bin/modemmenu -config /etc/asterisk/modemmenu.conf
 ;
@@ -100,6 +89,17 @@ state_dir = /var/lib/modemmenu
 ; {time_left} is in minutes, {seconds_left} in seconds; \a beeps
 time_warning = 5m 1m
 time_warning_message = "\r\n\r\n*** {time_left} minute(s) left in this call ***\r\n"
+
+; the caller's terminal, asked before the banner: ANSI (and its size),
+; VT52, what an ANSI terminal is (xterm, a VT220, SyncTERM...), and a
+; Commodore by its keys at the login.  {terminal}, {term}, {term_name},
+; {rows} and {cols} in the selections (TERM for exec items)
+[terminal]
+detect = yes
+; auto: watch the login for a Commodore's keys; yes: every caller is one
+petscii = auto
+; for each question a terminal may not answer
+timeout = 2s
 
 ; groups of users for the items' groups = (members of system groups count
 ; too, for logins by auth = system)
