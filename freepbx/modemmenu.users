@@ -1,0 +1,16 @@
+# /etc/modemmenu/modemmenu.users - the callers' logins, user:password, one
+# per line.  Keep it root's alone: chmod 600, chown root:root
+#
+# A password is best a bcrypt hash; modemmenu -hash asks for a password
+# and prints its hash, so this adds alice:
+#
+#   echo "alice:$(modemmenu -hash)" >> /etc/modemmenu/modemmenu.users
+#
+# {PLAIN}text is the password as it is, for a quick test only.
+# modemmenu reads the file at each login: no restart after a change.
+#
+# user:!hash is a locked account (signup's pending ones; remove the ! to
+# let them in).  What follows a second : is a note.
+#
+#alice:$2a$10$replace.this.with.the.output.of.modemmenu.hash
+#test:{PLAIN}changeme

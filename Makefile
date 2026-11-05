@@ -7,6 +7,8 @@
 #   make test            the tests
 #   make install         into $(BINDIR), samples into $(CONF_DIR), the
 #                        plugin into pppd's plugin directory
+#   make install-freepbx into $(BINDIR), freepbx/'s samples into
+#                        /etc/modemmenu and modemmenu.service into systemd
 
 GO ?= go
 BINDIR ?= /usr/local/bin
@@ -43,8 +45,22 @@ install: all
 	[ $(PPPD) != 1 ] || \
 		install -D -m 644 pppd/modemmenu.so $(DESTDIR)$(PPPD_PLUGIN_DIR)/modemmenu.so
 
+# FreePBX (freepbx/README.md): the files in /etc/modemmenu, out of
+# fwconsole chown's way; files already there are kept
+FREEPBX_CONF_DIR ?= /etc/modemmenu
+install-freepbx: all
+	install -D -m 755 modemmenu $(DESTDIR)$(BINDIR)/modemmenu
+	[ -e $(DESTDIR)$(FREEPBX_CONF_DIR)/modemmenu.conf ] || \
+		install -D -m 644 freepbx/modemmenu.conf $(DESTDIR)$(FREEPBX_CONF_DIR)/modemmenu.conf
+	[ -e $(DESTDIR)$(FREEPBX_CONF_DIR)/modemmenu.users ] || \
+		install -D -m 600 freepbx/modemmenu.users $(DESTDIR)$(FREEPBX_CONF_DIR)/modemmenu.users
+	[ -e $(DESTDIR)/etc/systemd/system/modemmenu.service ] || \
+		install -D -m 644 freepbx/modemmenu.service $(DESTDIR)/etc/systemd/system/modemmenu.service
+	[ $(PPPD) != 1 ] || \
+		install -D -m 644 pppd/modemmenu.so $(DESTDIR)$(PPPD_PLUGIN_DIR)/modemmenu.so
+
 clean:
 	rm -f modemmenu pppd/modemmenu.so
 
 FORCE:
-.PHONY: all test install clean FORCE
+.PHONY: all test install install-freepbx clean FORCE

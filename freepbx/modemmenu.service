@@ -1,0 +1,22 @@
+# /etc/systemd/system/modemmenu.service - modemmenu -serve for FreePBX's
+# D-Modem "menu" profile (a server on the unix socket
+# /run/modemmenu/modemmenu.sock, call details first)
+[Unit]
+Description=modemmenu: login and menu for dial-up callers
+After=network.target
+# FreePBX 17 starts Asterisk from freepbx.service; older ones from
+# asterisk.service.  The socket is there before either takes calls
+Before=freepbx.service asterisk.service
+
+[Service]
+ExecStart=/usr/local/bin/modemmenu -config /etc/modemmenu/modemmenu.conf -serve
+RuntimeDirectory=modemmenu
+RuntimeDirectoryMode=0755
+# time limits and last callers: /var/lib/modemmenu
+StateDirectory=modemmenu
+Restart=on-failure
+# root, for pppd (its noauth and the routes it adds)
+User=root
+
+[Install]
+WantedBy=multi-user.target
