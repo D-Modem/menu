@@ -1,7 +1,7 @@
 # Contributing
 
 Contributions are welcome: issues, fixes and features alike.  Before
-sending a change, run `make test` (see the README's Tests section).
+sending a change, run `make test` (see [docs/testing.md](docs/testing.md)).
 
 ## The contributor agreement
 
