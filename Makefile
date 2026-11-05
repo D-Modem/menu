@@ -27,8 +27,10 @@ all: modemmenu $(if $(filter 1,$(PPPD)),pppd/modemmenu.so)
 pppd/modemmenu.so: pppd/modemmenu.c
 	$(CC) $(CFLAGS) -Wall -fPIC -shared -o $@ $<
 
+# -buildvcs=false: nothing reads the VCS stamp, and git refuses a checkout
+# owned by another user (sudo make in your own clone), which fails the build
 modemmenu: FORCE
-	$(GO) build $(TAGS) -o $@ .
+	$(GO) build -buildvcs=false $(TAGS) -o $@ .
 
 test:
 	$(GO) vet $(TAGS) ./...
