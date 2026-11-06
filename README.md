@@ -54,6 +54,8 @@ then point an `app_dmodem` profile at it ([docs/running.md](docs/running.md)).
 
 ## Documentation
 
+The documentation is also a website, [d-modem.github.io/menu](https://d-modem.github.io/menu/), with reference pages made from the code.
+
 [docs/](docs/README.md) has building, running, configuration,
 authentication, PPP, security and the tests.
 [modemmenu.conf.sample](modemmenu.conf.sample) has every option.
