@@ -1,3 +1,5 @@
+<img src=".github/banner.png" alt="D-Modem/menu: User login and management for dial-up callers" width="100%">
+
 # modemmenu
 
 A login and menu for dial-up callers, the first thing a caller sees once
