@@ -1,6 +1,7 @@
 # Configuration
 
-[modemmenu.conf.sample](../modemmenu.conf.sample) has every option.  In
+[modemmenu.conf.sample](../modemmenu.conf.sample) has every option, and the
+[configuration reference](reference.md) lists them all, section by section.  In
 short:
 
 ```
