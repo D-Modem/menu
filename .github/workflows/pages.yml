@@ -1,0 +1,25 @@
+# modemmenu's site, https://d-modem.github.io/menu/: docs/ and the README
+# with brand's shared theme and workflow (brand's docs/sites.md).  A pull
+# request builds it, main deploys it.  It fails if docs/reference.md isn't
+# what modemmenu.conf.sample makes now (go run ./tools/confref).
+name: Pages
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  site:
+    uses: D-Modem/brand/.github/workflows/site.yml@main
+    with:
+      go-version: "1.24"
+      prepare: |
+        go run ./tools/confref
+        git diff --exit-code docs/reference.md || { echo "::error::docs/reference.md is out of date: go run ./tools/confref"; exit 1; }

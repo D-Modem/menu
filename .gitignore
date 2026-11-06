@@ -2,3 +2,6 @@ modemmenu
 pbx-modem
 /menu
 *.so
+# the site (brand's tools/site.sh)
+/.site/
+/site/

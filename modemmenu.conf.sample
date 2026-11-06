@@ -77,6 +77,9 @@ login_timeout = 90
 idle_timeout = 300
 ; user names taken (others are refused without asking a backend)
 user_pattern = ^[A-Za-z0-9][A-Za-z0-9._@-]{0,63}$
+; the longest line the caller may type at a prompt: a user name or a menu
+; choice (a password twice as long)
+;max_input = 64
 ; time limits (0: none), from the login: a call, and a user's calls in a
 ; day (kept in state_dir/usage).  A selection is hung up at the limit.
 ; {time_left} (whole minutes) shows what is left, e.g. in [menu] prompt
@@ -332,6 +335,8 @@ hotkeys = no
 ;                        in MODEM_SESSION_FILE (removed after)
 ;   after = hangup       when the item ends: hang up, or back to the menu
 ;   connect_timeout = 10 seconds to reach a server
+;   terminal = ANSI      telnet: the terminal type it tells the server ({term}
+;                        and the other placeholders work)
 ;   header = no          tcp, unix, telnet, rlogin: yes sends the session
 ;                        first, MODEM_* NAME=value lines and an empty line
 ;                        (the password only with pass_password), for
