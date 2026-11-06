@@ -58,7 +58,7 @@ The documentation is also a website, [d-modem.github.io/menu](https://d-modem.gi
 
 [docs/](docs/README.md) has building, running, configuration,
 authentication, PPP, security and the tests.
-[modemmenu.conf.sample](modemmenu.conf.sample) has every option.
+[samples/modemmenu.conf.sample](samples/modemmenu.conf.sample) has every option.
 
 ## The D-Modem suite
 

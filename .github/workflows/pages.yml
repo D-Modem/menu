@@ -1,7 +1,7 @@
 # modemmenu's site, https://d-modem.github.io/menu/: docs/ and the README
 # with brand's shared theme and workflow (brand's docs/sites.md).  A pull
 # request builds it, main deploys it.  It fails if docs/reference.md isn't
-# what modemmenu.conf.sample makes now (go run ./tools/confref).
+# what samples/modemmenu.conf.sample makes now (go run ./tools/confref).
 name: Pages
 on:
   push:

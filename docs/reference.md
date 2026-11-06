@@ -1,9 +1,9 @@
-<!-- Made by go run ./tools/confref from modemmenu.conf.sample: edit the sample, not this page. -->
+<!-- Made by go run ./tools/confref from samples/modemmenu.conf.sample: edit the sample, not this page. -->
 
 # Configuration reference
 
 Every section and key of modemmenu.conf, from the comments in
-[modemmenu.conf.sample](https://github.com/D-Modem/menu/blob/main/modemmenu.conf.sample).
+[modemmenu.conf.sample](https://github.com/D-Modem/menu/blob/main/samples/modemmenu.conf.sample).
 **Sample** is the value the sample sets (or shows, commented out);
 [Configuration](configuration.md) explains the file and its sections in
 full.

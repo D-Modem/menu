@@ -1,0 +1,350 @@
+// Copyright (C) 2026 D-Modem Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"os/exec"
+	"os/user"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
+
+	"github.com/D-Modem/menu/internal/config"
+	"github.com/D-Modem/menu/internal/telnet"
+	"github.com/D-Modem/menu/internal/term"
+	"golang.org/x/sys/unix"
+)
+
+// launch the selection: its error, or nil when it ended by itself;
+// errTimeLimit when deadline (if not zero) ended it
+func launch(t *term.Term, cfg *settings, it *menuItem, s *session, deadline time.Time, logf func(string, ...any)) error {
+	// each time_warning before the deadline (those still ahead), on the
+	// line in the middle of what the selection says
+	for _, warn := range cfg.limits.warnings {
+		if !it.timeWarning || deadline.IsZero() || time.Until(deadline) <= warn {
+			continue
+		}
+		timer := time.AfterFunc(time.Until(deadline)-warn, func() {
+			left := time.Until(deadline)
+			v := s.vars(false)
+			v["time_left"] = strconv.Itoa(int((left + 30*time.Second) / time.Minute))
+			v["seconds_left"] = strconv.Itoa(int((left + 500*time.Millisecond) / time.Second))
+			t.Write(config.Expand(cfg.limits.warningMessage, v, nil))
+			logf("%s: time warning user=%s left=%v", it.name, s.User, left.Round(time.Second))
+		})
+		defer timer.Stop()
+	}
+	switch it.mode {
+	case "passwd":
+		return changePasswordItem(t, cfg, it, s, deadline)
+	case "callers":
+		return callersItem(t, cfg, it)
+	case "exec":
+		return runExec(t, cfg, it, s, deadline, logf)
+	default:
+		return runTCP(t, it, s, deadline)
+	}
+}
+
+// runExec: the command under /bin/sh -c on the caller's line, the
+// session in MODEM_* of its environment, {placeholders} of the command
+// as quoted shell words
+func runExec(t *term.Term, cfg *settings, it *menuItem, s *session, deadline time.Time, logf func(string, ...any)) error {
+	v := s.vars(it.password)
+	env := make([]string, 0, 32)
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "MODEM_") {
+			env = append(env, e)
+		}
+	}
+	env = append(env, s.environ(it.password)...)
+	if s.Term != "" {
+		// the terminal as detected
+		env = setEnv(env, "TERM", s.Term)
+	}
+
+	uid, gid := -1, -1
+	var cred *syscall.Credential
+	var home string
+	if it.runAs != "" {
+		name := config.Expand(it.runAs, v, nil)
+		u, err := user.Lookup(name)
+		if err != nil {
+			return fmt.Errorf("run_as %s: %v", name, err)
+		}
+		if cred, err = credential(u); err != nil {
+			return fmt.Errorf("run_as %s: %v", name, err)
+		}
+		uid, gid = int(cred.Uid), int(cred.Gid)
+		home = u.HomeDir
+		env = setEnv(env, "HOME", u.HomeDir)
+		env = setEnv(env, "USER", u.Username)
+		env = setEnv(env, "LOGNAME", u.Username)
+		if sh := loginShell(u.Username); sh != "" {
+			env = setEnv(env, "SHELL", sh)
+		}
+	}
+	// the drop files of a door: the node, their directory and the files,
+	// for {node} and {dropfile_dir} in the command too
+	if len(it.dropfiles) > 0 {
+		df, err := writeDropfiles(cfg, it, s, deadline, uid, gid)
+		if err != nil {
+			return fmt.Errorf("drop files: %v", err)
+		}
+		defer df.close()
+		v["node"], v["dropfile_dir"] = strconv.Itoa(df.node), df.dir
+		// the first file's path, as BBSs pass it (Synchronet's %f)
+		v["dropfile"] = df.files[0]
+		env = append(env, "MODEM_NODE="+v["node"], "MODEM_DROPFILE_DIR="+df.dir,
+			"MODEM_DROPFILE="+df.files[0])
+	}
+
+	cmd := exec.Command("/bin/sh", "-c", config.Expand(it.command, v, shellQuote))
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stdout
+	if cred != nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: cred}
+		cmd.Dir = home
+	}
+	if it.sessionFile {
+		path, err := s.writeFile(it.password, uid, gid)
+		if err != nil {
+			return fmt.Errorf("session file: %v", err)
+		}
+		defer os.Remove(path)
+		env = append(env, "MODEM_SESSION_FILE="+path)
+	}
+	cmd.Env = env
+
+	before := t.SetMode(it.tty)
+	defer t.RestoreMode(before)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	running(cmd.Process)
+	// at the deadline: hung up, as when the caller hangs up, then killed
+	var timedOut atomic.Bool
+	if !deadline.IsZero() {
+		p := cmd.Process
+		timer := time.AfterFunc(time.Until(deadline), func() {
+			timedOut.Store(true)
+			p.Signal(syscall.SIGHUP)
+			time.AfterFunc(10*time.Second, func() { p.Kill() })
+		})
+		defer timer.Stop()
+	}
+	err := cmd.Wait()
+	running(nil)
+	if timedOut.Load() {
+		return errTimeLimit
+	}
+	// the line's foreground is ours again, whatever a shell did with it
+	unix.IoctlSetPointerInt(t.In, unix.TIOCSPGRP, unix.Getpgrp())
+	if ee, ok := err.(*exec.ExitError); ok {
+		logf("%s: %s", it.name, ee.ProcessState)
+		return nil
+	}
+	return err
+}
+
+// credential: a user's uid, gid and groups, to run a program as them
+func credential(u *user.User) (*syscall.Credential, error) {
+	uid, err := strconv.ParseUint(u.Uid, 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	gid, err := strconv.ParseUint(u.Gid, 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	c := &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+	if ids, err := u.GroupIds(); err == nil {
+		for _, id := range ids {
+			if g, err := strconv.ParseUint(id, 10, 32); err == nil {
+				c.Groups = append(c.Groups, uint32(g))
+			}
+		}
+	}
+	return c, nil
+}
+
+// loginShell of a user in /etc/passwd
+func loginShell(name string) string {
+	f, err := os.Open("/etc/passwd")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		p := strings.Split(sc.Text(), ":")
+		if len(p) == 7 && p[0] == name {
+			return p[6]
+		}
+	}
+	return ""
+}
+
+// setEnv: env with k set to v, replaced if it was there
+func setEnv(env []string, k, v string) []string {
+	for i, e := range env {
+		if strings.HasPrefix(e, k+"=") {
+			env[i] = k + "=" + v
+			return env
+		}
+	}
+	return append(env, k+"="+v)
+}
+
+// the program of the selection, for the signal handler
+var (
+	childMu sync.Mutex
+	child   *os.Process
+)
+
+// running: the program the line is handed to (nil: none), for the
+// signal handler
+func running(p *os.Process) {
+	childMu.Lock()
+	child = p
+	childMu.Unlock()
+}
+
+// runTCP: the caller's line to a server, by TCP or a unix socket: raw,
+// telnet or rlogin
+func runTCP(t *term.Term, it *menuItem, s *session, deadline time.Time) error {
+	v := s.vars(it.password)
+	network, addr := "tcp", net.JoinHostPort(it.host, strconv.Itoa(it.port))
+	if it.path != "" {
+		network, addr = "unix", it.path
+	}
+	conn, err := net.DialTimeout(network, addr, it.timeout)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if it.header {
+		// the session ahead of the protocol: for a modemmenu -serve, or
+		// any program that reads it
+		if err := writeHeader(conn, s, it.password); err != nil {
+			return err
+		}
+	}
+
+	var tn *telnet.Client
+	switch it.mode {
+	case "rlogin":
+		// RFC 1282: \0 client-user \0 server-user \0 terminal/speed \0;
+		// BBSs (Synchronet, Mystic) take the password as the client
+		// user and log the caller in at once
+		hello := "\x00" + config.Expand(it.rloginLocal, v, nil) + "\x00" +
+			config.Expand(it.rloginUser, v, nil) + "\x00" +
+			config.Expand(it.rloginTerm, v, nil) + "\x00"
+		conn.SetDeadline(time.Now().Add(it.timeout))
+		if _, err := io.WriteString(conn, hello); err != nil {
+			return err
+		}
+		var ack [1]byte
+		if _, err := io.ReadFull(conn, ack[:]); err != nil {
+			return fmt.Errorf("rlogin: %v", err)
+		}
+		conn.SetDeadline(time.Time{})
+		if ack[0] != 0 {
+			// not the ack: the server's first byte of output
+			t.WriteRaw(string(ack[:]))
+		}
+	case "telnet":
+		tn = telnet.New(conn, config.Expand(it.terminal, v, nil))
+	}
+	// at the deadline the connection's reads and writes fail: the end
+	conn.SetDeadline(deadline)
+	timeUp := func(err error) error {
+		if !deadline.IsZero() && !time.Now().Before(deadline) {
+			return errTimeLimit
+		}
+		return err
+	}
+	if it.send != "" {
+		b := []byte(config.Expand(config.Unescape(it.send), v, nil))
+		if tn != nil {
+			b = tn.Encode(b)
+		}
+		if _, err := conn.Write(b); err != nil {
+			return err
+		}
+	}
+
+	// what the caller sent that the menu read and did not take
+	if b := t.TakePending(); len(b) > 0 {
+		if tn != nil {
+			b = tn.Encode(b)
+		}
+		if _, err := conn.Write(b); err != nil {
+			return timeUp(err)
+		}
+	}
+
+	// the server to the caller
+	done := make(chan error, 1)
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := conn.Read(buf)
+			if n > 0 {
+				out := buf[:n]
+				if tn != nil {
+					out = tn.Decode(out)
+				}
+				if werr := t.WriteRaw(string(out)); werr != nil {
+					done <- werr
+					return
+				}
+			}
+			if err != nil {
+				done <- nil
+				return
+			}
+		}
+	}()
+
+	// the caller to the server, until either goes away; stdin is polled
+	// so that nothing is read from it once the server is gone
+	buf := make([]byte, 4096)
+	for {
+		select {
+		case err := <-done:
+			return timeUp(err)
+		default:
+		}
+		ok, err := term.PollOne(t.In, unix.POLLIN, 200*time.Millisecond)
+		if err != nil {
+			return term.ErrHangup
+		}
+		if !ok {
+			continue
+		}
+		n, err := unix.Read(t.In, buf)
+		if err == unix.EINTR || err == unix.EAGAIN {
+			continue
+		}
+		if n <= 0 || err != nil {
+			return term.ErrHangup
+		}
+		b := buf[:n]
+		if tn != nil {
+			b = tn.Encode(b)
+		}
+		if _, err := tn.Pass(conn, b); err != nil {
+			<-done
+			return timeUp(nil)
+		}
+	}
+}

@@ -1,7 +1,7 @@
 INHERIT: .site/mkdocs-base.yml
 # modemmenu's site, https://d-modem.github.io/menu/: docs/ and the README
 # with brand's shared theme and workflow (brand's docs/sites.md).
-# docs/reference.md is made from modemmenu.conf.sample (go run ./tools/confref).
+# docs/reference.md is made from samples/modemmenu.conf.sample (go run ./tools/confref).
 site_name: D-Modem menu
 site_description: modemmenu, the login and menu dial-up callers reach
 site_url: https://d-modem.github.io/menu/

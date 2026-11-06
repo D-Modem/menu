@@ -1,6 +1,6 @@
 # Configuration
 
-[modemmenu.conf.sample](../modemmenu.conf.sample) has every option, and the
+[modemmenu.conf.sample](../samples/modemmenu.conf.sample) has every option, and the
 [configuration reference](reference.md) lists them all, section by section.  In
 short:
 
@@ -345,7 +345,7 @@ such an item, each login is recorded in `state_dir/callers` (the latest
 ## More items
 
 
-The end of [modemmenu.conf.sample](../modemmenu.conf.sample) has items to
+The end of [modemmenu.conf.sample](../samples/modemmenu.conf.sample) has items to
 copy, each needing its program:
 
 | item | program |
