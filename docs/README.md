@@ -9,4 +9,4 @@
 - [Security notes](security.md)
 - [Tests](testing.md)
 
-The samples: [modemmenu.conf.sample](../modemmenu.conf.sample), [modemmenu.users.sample](../modemmenu.users.sample), [modemmenu.pam.sample](../modemmenu.pam.sample), [modemmenu.service.sample](../modemmenu.service.sample), [modemmenu-authd.service.sample](../modemmenu-authd.service.sample).
+The samples: [modemmenu.conf.sample](../samples/modemmenu.conf.sample), [modemmenu.users.sample](../samples/modemmenu.users.sample), [modemmenu.pam.sample](../samples/modemmenu.pam.sample), [modemmenu.service.sample](../samples/modemmenu.service.sample), [modemmenu-authd.service.sample](../samples/modemmenu-authd.service.sample).

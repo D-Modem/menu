@@ -40,7 +40,7 @@ checks for expired and locked accounts.  It needs a build with PAM
 (above).  To set it up:
 
 1. Install the PAM service: `make install` puts
-   [modemmenu.pam.sample](../modemmenu.pam.sample) in `/etc/pam.d/modemmenu`
+   [modemmenu.pam.sample](../samples/modemmenu.pam.sample) in `/etc/pam.d/modemmenu`
    (the distribution's `common-auth`, `common-account` and, for password
    changes, `common-password`).
 2. Run Asterisk, and so modemmenu, as root for local accounts:
@@ -84,7 +84,7 @@ password where, never the password.
 Run as root, `pam_unix` applies no quality checks (its `minlen` and
 the like are not for root): for a policy, put `pam_pwquality` before it
 with `enforce_for_root`, as
-[modemmenu.pam.sample](../modemmenu.pam.sample) shows.
+[modemmenu.pam.sample](../samples/modemmenu.pam.sample) shows.
 
 ## The same password elsewhere: the auth socket
 
@@ -104,7 +104,7 @@ allow_users = bbs
 ```
 
 `modemmenu -serve` answers it as well as its sessions; `modemmenu -authd`
-answers it alone (modemmenu-authd.service.sample).  One request a
+answers it alone ([modemmenu-authd.service.sample](../samples/modemmenu-authd.service.sample)).  One request a
 connection, a JSON line each way:
 
 ```

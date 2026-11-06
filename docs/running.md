@@ -76,7 +76,7 @@ the connection, which hangs up the call.
 `-listen PATH` overrides `listen`.  `SIGTERM` hangs up every session,
 removes the socket and ends the server; a stale socket left by a server
 that died is replaced at start, a live one is not.
-[modemmenu.service.sample](../modemmenu.service.sample) runs it under
+[modemmenu.service.sample](../samples/modemmenu.service.sample) runs it under
 systemd, which also makes `/run/modemmenu`.  Each connection is logged
 with its peer's pid and uid.
 

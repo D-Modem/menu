@@ -4,11 +4,11 @@
 // Command confref writes docs/reference.md, the configuration reference:
 // every section and key of modemmenu.conf, with the help, the sample's
 // value and the other values the sample shows, all read from the comments
-// of modemmenu.conf.sample.  From the repository's root:
+// of samples/modemmenu.conf.sample.  From the repository's root:
 //
 //	go run ./tools/confref
 //
-// TestSampleHasEveryKey (config_test.go) keeps the sample complete: a key
+// TestSampleHasEveryKey (cmd/modemmenu/reference_test.go) keeps the sample complete: a key
 // the code reads that the sample doesn't show fails it.
 package main
 
@@ -241,12 +241,12 @@ func prose(s string) string {
 
 func reference(kinds []*kind) string {
 	var b strings.Builder
-	b.WriteString(`<!-- Made by go run ./tools/confref from modemmenu.conf.sample: edit the sample, not this page. -->
+	b.WriteString(`<!-- Made by go run ./tools/confref from samples/modemmenu.conf.sample: edit the sample, not this page. -->
 
 # Configuration reference
 
 Every section and key of modemmenu.conf, from the comments in
-[modemmenu.conf.sample](https://github.com/D-Modem/menu/blob/main/modemmenu.conf.sample).
+[modemmenu.conf.sample](https://github.com/D-Modem/menu/blob/main/samples/modemmenu.conf.sample).
 **Sample** is the value the sample sets (or shows, commented out);
 [Configuration](configuration.md) explains the file and its sections in
 full.
@@ -300,7 +300,7 @@ full.
 }
 
 func main() {
-	sample, err := os.ReadFile("modemmenu.conf.sample")
+	sample, err := os.ReadFile("samples/modemmenu.conf.sample")
 	if err != nil {
 		log.Fatal(err)
 	}

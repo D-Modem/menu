@@ -1,0 +1,142 @@
+// Copyright (C) 2026 D-Modem Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package auth
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/D-Modem/menu/internal/config"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+	_ "modernc.org/sqlite"
+)
+
+// SQL: query, with the user (and the password, for args = user
+// password) as its arguments, returns the stored password of the user
+// (checked as hash says), or with hash = none any row for a valid login
+type SQL struct {
+	driver  string
+	dsn     string
+	query   string
+	args    []string
+	scheme  string
+	timeout time.Duration
+	db      *sql.DB
+	// changing passwords (mode = passwd items): update_query with
+	// update_args, the password as update_hash says
+	updateQuery string
+	updateArgs  []string
+	updateHash  string
+}
+
+var sqlDrivers = map[string]string{
+	"mysql":      "mysql",
+	"mariadb":    "mysql",
+	"postgres":   "postgres",
+	"postgresql": "postgres",
+	"sqlite":     "sqlite",
+	"sqlite3":    "sqlite",
+}
+
+// NewSQL: the [sql] backend, its database opened (not yet
+// connected); args names the query's parameters (user, password)
+func NewSQL(s *config.Section) (Authenticator, error) {
+	var err error
+	a := &SQL{
+		dsn:    s.Get("dsn", ""),
+		query:  s.Get("query", ""),
+		args:   config.Fields(strings.ToLower(s.Get("args", "user"))),
+		scheme: strings.ToLower(s.Get("hash", "auto")),
+	}
+	drv := strings.ToLower(s.Get("driver", ""))
+	if a.driver = sqlDrivers[drv]; a.driver == "" {
+		return nil, fmt.Errorf("[sql] driver: %q (mysql, postgres or sqlite)", drv)
+	}
+	if a.dsn == "" || a.query == "" {
+		return nil, fmt.Errorf("[sql] needs dsn and query")
+	}
+	for _, arg := range a.args {
+		if arg != "user" && arg != "password" {
+			return nil, fmt.Errorf("[sql] args: %q (user, password)", arg)
+		}
+	}
+	if a.timeout, err = s.Duration("timeout", 10*time.Second); err != nil {
+		return nil, err
+	}
+	a.updateQuery = s.Get("update_query", "")
+	a.updateArgs = config.Fields(strings.ToLower(s.Get("update_args", "password user")))
+	a.updateHash = strings.ToLower(s.Get("update_hash", "bcrypt"))
+	for _, arg := range a.updateArgs {
+		if arg != "user" && arg != "password" && arg != "old_password" {
+			return nil, fmt.Errorf("[sql] update_args: %q (user, password, old_password)", arg)
+		}
+	}
+	if a.updateHash != "bcrypt" && a.updateHash != "none" {
+		return nil, fmt.Errorf("[sql] update_hash: %q (bcrypt, or none: the password as typed, for a query that hashes it)", a.updateHash)
+	}
+	// opening does not connect: a database that is down only fails the
+	// logins that reach it
+	if a.db, err = sql.Open(a.driver, a.dsn); err != nil {
+		return nil, fmt.Errorf("[sql] %v", err)
+	}
+	a.db.SetMaxOpenConns(1)
+	return a, nil
+}
+
+// Name: the backend's Name, for {auth} and the log
+func (a *SQL) Name() string { return "sql" }
+
+// Authenticate: the query's row for the user, its first column the
+// stored hash checked against the password (hash = none: a row is enough)
+func (a *SQL) Authenticate(ctx context.Context, user, password string) error {
+	ctx, cancel := context.WithTimeout(ctx, a.timeout)
+	defer cancel()
+	args := make([]any, len(a.args))
+	for i, arg := range a.args {
+		if arg == "user" {
+			args[i] = user
+		} else {
+			args[i] = password
+		}
+	}
+	var stored sql.NullString
+	row := a.db.QueryRowContext(ctx, a.query, args...)
+	var err error
+	if a.scheme == "none" {
+		err = row.Scan(&discard{})
+	} else {
+		err = row.Scan(&stored)
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNoUser
+	}
+	if err != nil {
+		return err
+	}
+	if a.scheme == "none" {
+		return nil
+	}
+	if !stored.Valid {
+		return ErrBadPassword
+	}
+	ok, err := CheckPassword(stored.String, password, a.scheme)
+	if err != nil {
+		return fmt.Errorf("user %s: %v", user, err)
+	}
+	if !ok {
+		return ErrBadPassword
+	}
+	return nil
+}
+
+// discard scans and drops a column of any type
+type discard struct{}
+
+// Scan: drops the column (sql.Scanner)
+func (*discard) Scan(any) error { return nil }

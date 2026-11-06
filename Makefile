@@ -30,7 +30,7 @@ pppd/modemmenu.so: pppd/modemmenu.c
 # -buildvcs=false: nothing reads the VCS stamp, and git refuses a checkout
 # owned by another user (sudo make in your own clone), which fails the build
 modemmenu: FORCE
-	$(GO) build -buildvcs=false $(TAGS) -o $@ .
+	$(GO) build -buildvcs=false $(TAGS) -o $@ ./cmd/modemmenu
 
 test:
 	$(GO) vet $(TAGS) ./...
@@ -39,11 +39,11 @@ test:
 install: all
 	install -D -m 755 modemmenu $(DESTDIR)$(BINDIR)/modemmenu
 	[ -e $(DESTDIR)$(CONF_DIR)/modemmenu.conf ] || \
-		install -D -m 640 modemmenu.conf.sample $(DESTDIR)$(CONF_DIR)/modemmenu.conf
+		install -D -m 640 samples/modemmenu.conf.sample $(DESTDIR)$(CONF_DIR)/modemmenu.conf
 	[ -e $(DESTDIR)$(CONF_DIR)/modemmenu.users ] || \
-		install -D -m 600 modemmenu.users.sample $(DESTDIR)$(CONF_DIR)/modemmenu.users
+		install -D -m 600 samples/modemmenu.users.sample $(DESTDIR)$(CONF_DIR)/modemmenu.users
 	[ $(PAM) != 1 ] || [ -e $(DESTDIR)/etc/pam.d/modemmenu ] || \
-		install -D -m 644 modemmenu.pam.sample $(DESTDIR)/etc/pam.d/modemmenu
+		install -D -m 644 samples/modemmenu.pam.sample $(DESTDIR)/etc/pam.d/modemmenu
 	[ $(PPPD) != 1 ] || \
 		install -D -m 644 pppd/modemmenu.so $(DESTDIR)$(PPPD_PLUGIN_DIR)/modemmenu.so
 
