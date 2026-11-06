@@ -240,7 +240,7 @@ func adPassword(pw string) string {
 // MemberOf: whether user is in group, an entry under group_base that
 // group_filter ({group}, the user's {dn} and {user}) finds; searched as
 // search_bind_dn, else as the user (with their password), else
-// anonymously.  errNoUser without group_base: LDAP has no groups here.
+// anonymously.  ErrNoUser without group_base: LDAP has no groups here.
 func (a *LDAP) MemberOf(user, password, group string) (bool, error) {
 	if a.groupBase == "" {
 		return false, ErrNoUser

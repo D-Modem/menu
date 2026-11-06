@@ -14,7 +14,7 @@ import (
 )
 
 // File: a text file of user:password lines (the password hashed as
-// checkPassword reads it, ! before it for a locked account; # comments),
+// CheckPassword reads it, ! before it for a locked account; # comments),
 // read at each login so that edits take effect at once
 type File struct {
 	path   string

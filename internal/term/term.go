@@ -127,7 +127,7 @@ func (t *Term) RestoreMode(tio *unix.Termios) {
 	}
 }
 
-// Close: the line's mode as newTerm found it
+// Close: the line's mode as New found it
 func (t *Term) Close() {
 	if t.saved != nil {
 		unix.IoctlSetTermios(t.In, unix.TCSETSW, t.saved)
@@ -181,7 +181,7 @@ func PollOne(fd int, ev int16, d time.Duration) (bool, error) {
 	}
 }
 
-// ReadOne within d, or errTimeout; errHangup when the line is gone
+// ReadOne within d, or ErrTimeout; ErrHangup when the line is gone
 func (t *Term) ReadOne(d time.Duration) (byte, error) {
 	if len(t.pending) > 0 {
 		b := t.pending[0]
