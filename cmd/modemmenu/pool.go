@@ -30,8 +30,8 @@ type pppPoolSettings struct {
 	dns         []netip.Addr // offered to the callers (ms-dns), at most 2
 }
 
-// pppPoolMax: a range larger than this is a typo, not a pool
-const pppPoolMax = 4096
+// pppPoolMax: a range larger than this (a /16) is a typo, not a pool
+const pppPoolMax = 65536
 
 // loadPPPPool: [ppp_pool], checked; no range: no pool
 func loadPPPPool(sec *config.Section) (pppPoolSettings, error) {

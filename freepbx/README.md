@@ -101,8 +101,8 @@ detection off; D-Modem's line check page lists what is still in the way.
 ## The menu
 
 - **PPP**: dial-up networking.  `apt install ppp` first.  Each caller
-  gets an address of `[ppp_pool]` (100.77.0.10 to .250, the server is
-  100.77.0.1).  For DNS, the internet and keeping callers off your LAN,
+  gets an address of `[ppp_pool]` (100.120.224.10 to 100.120.255.254, the server is
+  100.120.224.1).  For DNS, the internet and keeping callers off your LAN,
   `make install-dialup` ([the dial-up network](../docs/dialup-network.md)).
   Windows' Dial-Up Networking logs in
   with PAP instead of at the prompt: turn on `[autoppp]` and install

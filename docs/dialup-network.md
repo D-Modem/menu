@@ -9,7 +9,7 @@ files are in [`dialup/`](../dialup); `make install-dialup` installs them.
 ```
 caller ── modem ── D-Modem ── modemmenu ── pppd ── ppp0 ┐
                                                         │  VRF "dialup" (table 77)
-                       100.77.0.1: DNS, BBS, front ends ─┤  100.77.0.0/24
+               100.120.224.1: DNS, BBS, front ends ─────┤  100.120.224.0/19
                                                         └─ egress: eth0.77 (VLAN), eth0 (NAT) or none
 ```
 
@@ -17,9 +17,9 @@ caller ── modem ── D-Modem ── modemmenu ── pppd ── ppp0 ┐
 
 ```
 [ppp_pool]
-local = 100.77.0.1
-range = 100.77.0.10-100.77.0.250
-;dns = 100.77.0.1
+local = 100.120.224.1
+range = 100.120.224.10-100.120.255.254
+;dns = 100.120.224.1
 ```
 
 A PPP command that names `{ppp_remote}` (or `{ppp_local}`, `{ppp_dns}`,
@@ -42,14 +42,14 @@ command = exec /usr/sbin/pppd nodetach noauth local lock passive {ppp_local}:{pp
   `MODEM_PPP_DNS` and `MODEM_PPP_DNS2`.
 - A full pool refuses the call ("all N PPP addresses are in use").
 - D-Modem's own `[ppp]` profile runs pppd without modemmenu, so it has
-  no pool: give it a fixed pair outside `range` (100.77.0.2 to .9).
+  no pool: give it a fixed pair outside `range` (100.120.224.2 to .9).
 
 Pick a subnet none of the host's networks use.  The sample's,
-100.77.0.0/24, is in 100.64.0.0/10, the shared address space of RFC 6598
+100.120.224.0/19 (8,190 addresses), is in 100.64.0.0/10, the shared address space of RFC 6598
 (carrier-grade NAT): home and office LANs don't use it, so it doesn't
 clash with them.  Tailscale also hands out addresses in 100.64.0.0/10:
 on a host that runs it, check `tailscale status` for a clash, or pick
-another /24.
+another range.
 
 ## Isolation: `modemmenu-dialup`
 
@@ -60,13 +60,13 @@ up, from `/etc/modemmenu/dialup.conf`:
   it, so the host's routes, and its LANs, are not theirs.  A lookup that
   finds nothing there is unreachable; it never falls through to the
   host's table.
-- **`dialup0`**, a dummy interface holding `SERVER_ADDR` (100.77.0.1), so
+- **`dialup0`**, a dummy interface holding `SERVER_ADDR` (100.120.224.1), so
   the DNS server has its address while no caller is on.
 - **An egress** (`EGRESS`):
   - `vlan`: `UPLINK.VLAN_ID` (`eth0.77`), in the VRF, with its own
     address and gateway.  Dial-up traffic leaves on a VLAN of its own and
     never shares the host's LAN.  `NAT=no` when the router on that VLAN
-    routes 100.77.0.0/24 back itself.
+    routes 100.120.224.0/19 back itself.
   - `uplink`: out of the host's interface through its gateway,
     masqueraded.  Simpler, and filtered like the VLAN.
   - `none`: no internet; the host's services only.
@@ -79,7 +79,7 @@ up, from `/etc/modemmenu/dialup.conf`:
   - callers are isolated from each other: anything from one caller to
     `SUBNET` (another caller) is dropped, before and whatever
     `ALLOW_CIDRS` says.  They still meet in the host's services (the BBS,
-    the messengers) on 100.77.0.1.
+    the messengers) on 100.120.224.1.
   - onward: `BLOCK_CIDRS` are dropped (every private range, link-local
     and multicast, by default), so the host's LANs are out of reach,
     except `ALLOW_CIDRS`, which the sysop opens:
@@ -93,7 +93,7 @@ up, from `/etc/modemmenu/dialup.conf`:
   - a source address outside `SUBNET` is dropped, and IPv6 too.
 - `net.ipv4.ip_forward=1`, and `tcp_l3mdev_accept`/`udp_l3mdev_accept`,
   so the host's services (listening in no VRF) answer callers on
-  100.77.0.1.
+  100.120.224.1.
 
 pppd's `ip-up.d/modemmenu-dialup` moves a link whose local address is
 `SERVER_ADDR` into the VRF, putting it on the firewall's list first;
@@ -104,7 +104,7 @@ VRF, its routes and the callers' links.
 
 ## DNS: `modemmenu-dns`
 
-`modemmenu-dns.service` runs dnsmasq inside the VRF, on 100.77.0.1 only,
+`modemmenu-dns.service` runs dnsmasq inside the VRF, on 100.120.224.1 only,
 with [`dnsmasq.conf`](../dialup/dnsmasq.conf): no DHCP, upstream
 servers of its own (the host's `127.0.0.53` is not in the VRF), and the
 names of this system under `.dialup` (`bbs.dialup`).
@@ -118,7 +118,7 @@ the rest).  A front end can drop its own file instead:
 
 ```
 # /etc/modemmenu/dns.d/oscar.conf
-address=/login.oscar.aol.com/100.77.0.1
+address=/login.oscar.aol.com/100.120.224.1
 ```
 
 `address=/name/ip` answers the name and every name under it.  Then

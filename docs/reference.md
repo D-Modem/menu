@@ -207,9 +207,9 @@ The PPP callers' addresses: a command that names {ppp_remote} (or {ppp_local}, {
 
 | key | sample | what it does |
 |---|---|---|
-| `local` | `100.77.0.1` | See the section above. |
-| `range` | `100.77.0.10-100.77.0.250` | See the section above. |
-| `dns` | `100.77.0.1` | See the section above. |
+| `local` | `100.120.224.1` | See the section above. |
+| `range` | `100.120.224.10-100.120.255.254` | See the section above. |
+| `dns` | `100.120.224.1` | See the section above. |
 
 ## `[autoppp]`
 
