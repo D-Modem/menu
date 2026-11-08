@@ -37,11 +37,11 @@ UPLINK_GATEWAY=
 # VLAN routes SUBNET back to VLAN_ADDR itself)
 NAT=yes
 
-# What callers may reach.  BLOCK_CIDRS are dropped (the private ranges by
-# default, so the host's LANs and the other callers are out of reach),
-# except ALLOW_CIDRS, which the sysop opens, e.g. ALLOW_CIDRS="192.168.1.20/32"
-# for one machine, or SUBNET for callers to reach each other.  The
-# internet (anything else) is open while INTERNET=yes.
+# What callers may reach.  Other callers: never (SUBNET is always
+# dropped).  BLOCK_CIDRS are dropped (the private ranges by default, so the
+# host's LANs are out of reach), except ALLOW_CIDRS, which the sysop opens,
+# e.g. ALLOW_CIDRS="192.168.1.20/32" for one machine.  The internet
+# (anything else) is open while INTERNET=yes.
 ALLOW_CIDRS=""
 BLOCK_CIDRS="10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16 224.0.0.0/4 240.0.0.0/4"
 INTERNET=yes

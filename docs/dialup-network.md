@@ -72,13 +72,17 @@ up, from `/etc/modemmenu/dialup.conf`:
     `SERVER_ADDR` (DNS, telnet, HTTP(S), MSN 1863, Yahoo 5050, OSCAR and
     AOL 5190 by default), and ping.  SSH, the PBX's web UI and every other
     port of the host are closed to them.
+  - callers are isolated from each other: anything from one caller to
+    `SUBNET` (another caller) is dropped, before and whatever
+    `ALLOW_CIDRS` says.  They still meet in the host's services (the BBS,
+    the messengers) on 10.77.0.1.
   - onward: `BLOCK_CIDRS` are dropped (every private range, link-local
-    and multicast, by default), so the host's LANs, and the other callers,
-    are out of reach, except `ALLOW_CIDRS`, which the sysop opens:
+    and multicast, by default), so the host's LANs are out of reach,
+    except `ALLOW_CIDRS`, which the sysop opens:
 
     ```
-    ALLOW_CIDRS="192.168.1.20/32"           # one machine on the LAN
-    ALLOW_CIDRS="192.168.1.0/24 10.77.0.0/24"   # a LAN, and caller to caller
+    ALLOW_CIDRS="192.168.1.20/32"     # one machine on the LAN
+    ALLOW_CIDRS="192.168.1.0/24"      # a whole LAN
     ```
 
     The rest, the internet, is open while `INTERNET=yes`.

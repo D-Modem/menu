@@ -67,6 +67,8 @@ table inet $NFT_TABLE {
 		ct state established,related accept
 		meta nfproto ipv6 drop
 		ip saddr != $SUBNET drop
+		# callers never reach each other, whatever ALLOW_CIDRS says
+		ip daddr $SUBNET drop
 		ip daddr @allow accept
 		ip daddr @block drop
 		$internet
