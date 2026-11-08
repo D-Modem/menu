@@ -63,6 +63,15 @@ it, as `mode = exec` would give it, so pppd, shells and `^C` work the
 same.  The caller hanging up hangs up the pty; the session ending closes
 the connection, which hangs up the call.
 
+Many callers at once are many connections: app_dmodem connects each
+call by itself, and the server serves each connection in its own
+session, up to `max_sessions`.  An item that hands the caller on to a
+server (`mode = unix`, `tcp`, `telnet`, `rlogin`), a BBS for one,
+opens a connection of its own for that caller from their session and
+copies the bytes between it and the session's pty.  Nothing passes a
+descriptor (`SCM_RIGHTS`) from one process to the next: each hop copies,
+so each caller's bytes stay on their own connection all the way through.
+
 | `[server]` option | default | |
 |---|---|---|
 | `listen` | `/run/modemmenu/modemmenu.sock` | a unix socket's path, or `tcp:host:port` |
