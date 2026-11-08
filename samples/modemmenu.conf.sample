@@ -262,9 +262,9 @@ max_sessions = 32
 ; host's networks use.  No range: no pool.  The scripts see MODEM_PPP_LOCAL,
 ; MODEM_PPP_REMOTE, MODEM_PPP_DNS and MODEM_PPP_DNS2
 [ppp_pool]
-local = 10.77.0.1
-range = 10.77.0.10-10.77.0.250
-;dns = 10.77.0.1
+local = 100.77.0.1
+range = 100.77.0.10-100.77.0.250
+;dns = 100.77.0.1
 
 ; AutoPPP: a dialer that starts PPP at once (Windows' Dial-Up Networking,
 ; most others) sends a PPP frame where the login prompt wants a name; then

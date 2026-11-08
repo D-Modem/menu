@@ -13,9 +13,10 @@ VRF=dialup
 VRF_TABLE=77
 
 # the callers' subnet: [ppp_pool] range is in it, and its local is
-# SERVER_ADDR.  Pick one no network of the host uses.
-SUBNET=10.77.0.0/24
-SERVER_ADDR=10.77.0.1
+# SERVER_ADDR.  Pick one no network of the host uses: 100.64.0.0/10
+# (RFC 6598, carrier-grade NAT) is not a LAN's, though Tailscale uses it.
+SUBNET=100.77.0.0/24
+SERVER_ADDR=100.77.0.1
 
 # Where the callers' traffic leaves:
 #   vlan    a VLAN of its own on UPLINK (UPLINK.VLAN_ID), with its own
