@@ -1,0 +1,54 @@
+# /etc/modemmenu/dialup.conf: the dial-up callers' network, read by
+# modemmenu-dialup (at boot, by modemmenu-dialup.service) and by pppd's
+# ip-up.d/ip-down.d hooks.  Shell syntax.
+#
+# Callers get addresses from modemmenu's [ppp_pool] in SUBNET, in a
+# routing table of their own (a VRF), so that the host's own networks are
+# not theirs: they reach the host's services on SERVER_ADDR (the ports
+# below), the internet through EGRESS, and of the host's LANs only what
+# ALLOW_CIDRS lets through.
+
+# the VRF device and its routing table
+VRF=dialup
+VRF_TABLE=77
+
+# the callers' subnet: [ppp_pool] range is in it, and its local is
+# SERVER_ADDR.  Pick one no network of the host uses: 100.64.0.0/10
+# (RFC 6598, carrier-grade NAT) is not a LAN's, though Tailscale uses it.
+SUBNET=100.120.224.0/19
+SERVER_ADDR=100.120.224.1
+
+# Where the callers' traffic leaves:
+#   vlan    a VLAN of its own on UPLINK (UPLINK.VLAN_ID), with its own
+#           address and gateway: dial-up never shares the host's LAN
+#   uplink  out of UPLINK, through the host's gateway (NAT), filtered
+#   none    no internet: the host's services only
+EGRESS=uplink
+UPLINK=eth0
+
+# EGRESS=vlan: the VLAN, this host's address on it, its router
+VLAN_ID=77
+VLAN_ADDR=10.177.0.2/24
+VLAN_GATEWAY=10.177.0.1
+
+# EGRESS=uplink: the gateway ("": the host's default gateway on UPLINK)
+UPLINK_GATEWAY=
+
+# masquerade the callers behind the egress address (no: the router on the
+# VLAN routes SUBNET back to VLAN_ADDR itself)
+NAT=yes
+
+# What callers may reach.  Other callers: never (SUBNET is always
+# dropped).  BLOCK_CIDRS are dropped (the private ranges by default, so the
+# host's LANs are out of reach), except ALLOW_CIDRS, which the sysop opens,
+# e.g. ALLOW_CIDRS="192.168.1.20/32" for one machine.  The internet
+# (anything else) is open while INTERNET=yes.
+ALLOW_CIDRS=""
+BLOCK_CIDRS="10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16 224.0.0.0/4 240.0.0.0/4"
+INTERNET=yes
+
+# the host's services callers may use on SERVER_ADDR: DNS (the resolver
+# of modemmenu-dns.service), telnet, HTTP(S), MSN 1863, Yahoo 5050,
+# OSCAR/AOL 5190.  The host's other ports are closed to them.
+HOST_TCP_PORTS="53 23 80 443 1863 5050 5190"
+HOST_UDP_PORTS="53"

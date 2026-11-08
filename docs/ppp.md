@@ -12,7 +12,7 @@ on the line instead:
 ```
 [autoppp]
 enabled = yes
-command = exec /usr/sbin/pppd nodetach lock passive local 192.168.77.1:192.168.77.2 ms-dns 192.168.77.1 require-pap refuse-chap refuse-mschap refuse-mschap-v2 refuse-eap plugin modemmenu.so ipparam autoppp
+command = exec /usr/sbin/pppd nodetach lock passive local {ppp_local}:{ppp_remote} ms-dns {ppp_dns} ms-dns {ppp_dns2} require-pap refuse-chap refuse-mschap refuse-mschap-v2 refuse-eap plugin modemmenu.so ipparam autoppp
 item = ppp
 ```
 
@@ -39,7 +39,15 @@ caller ID, the rate).
   network that was the line's privacy; over SIP it is in the call's RTP:
   give the trunk SRTP (and SIP over TLS), or keep it on a network you
   trust.
-- **Fix the addresses** (`local:remote` on pppd's command line): the
-  plugin lets the logged-in peer have the address pppd gives it.
+- **Fix the addresses** (`local:remote` on pppd's command line, from
+  `[ppp_pool]`): the plugin lets the logged-in peer have the address pppd
+  gives it.
 - The plugin is built for the pppd of the headers it is built against
   (`pppd_version`); rebuild it when pppd is upgraded.
+
+## Addresses, DNS and the callers' network
+
+Each PPP caller gets an address of its own from `[ppp_pool]`, a DNS
+server with overrides for the services this system provides, and a
+network kept apart from the host's: see
+[The dial-up network](dialup-network.md).

@@ -1,0 +1,9 @@
+#!/bin/sh
+# /etc/ppp/ip-down.d/modemmenu-dialup: the link's name off the firewall's
+# list, for the next link of that name
+CONF=/etc/modemmenu/dialup.conf
+[ -r "$CONF" ] || exit 0
+# shellcheck source=/dev/null
+. "$CONF"
+[ "${PPP_LOCAL:-}" = "$SERVER_ADDR" ] || exit 0
+exec /usr/local/sbin/modemmenu-dialup detach "$PPP_IFACE"

@@ -29,6 +29,7 @@ One Go module, one program:
 | `internal/telnet/` | the telnet client of `mode = telnet` items |
 | `authd/` | the auth socket's protocol and a client, for other programs (a BBS) to import |
 | `pppd/` | pppd's `modemmenu.so` plugin, in C |
+| `dialup/` | the PPP callers' network: VRF, firewall, DNS with overrides (`make install-dialup`) |
 | `samples/` | modemmenu.conf, the users file, PAM and systemd samples |
 | `freepbx/` | the FreePBX setup |
 | `tools/confref/` | makes docs/reference.md from samples/modemmenu.conf.sample |

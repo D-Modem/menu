@@ -39,7 +39,7 @@ type key struct {
 }
 
 var (
-	headerRE  = regexp.MustCompile(`^;?\[([a-z]+)(?:\s+(\S+))?\]$`)
+	headerRE  = regexp.MustCompile(`^;?\[([a-z_]+)(?:\s+(\S+))?\]$`)
 	keyRE     = regexp.MustCompile(`^(;?)([a-z][a-z0-9_]*)\s*=\s*(.*)$`)
 	docKeyRE  = regexp.MustCompile(`^;\s{2,4}([a-z][a-z0-9_]*) = (\S+)\s*(.*)$`)
 	docMoreRE = regexp.MustCompile(`^;\s{5,}(.*)$`)
