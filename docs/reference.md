@@ -184,8 +184,8 @@ modemmenu -serve: one modemmenu for all calls, on a unix socket (or tcp:host:por
 | `listen` | `/run/modemmenu/modemmenu.sock` | See the section above. |
 | `socket_mode` | `0660` | the socket's permissions: who may connect (app_dmodem: Asterisk's group) |
 | `socket_group` | `asterisk` | the socket's permissions: who may connect (app_dmodem: Asterisk's group) |
-| `header` | `yes` | the call's details come first on each connection, NAME=value lines and an empty line: app_dmodem's header = yes (DMODEM_*), or a menu item's header = yes (MODEM_*). no: the caller's bytes from the start. |
-| `header_timeout` | `10` | the call's details come first on each connection, NAME=value lines and an empty line: app_dmodem's header = yes (DMODEM_*), or a menu item's header = yes (MODEM_*). no: the caller's bytes from the start. |
+| `header` | `yes` | the call's details come first on each connection, NAME=value lines and an empty line: app_dmodem's header = yes (DMODEM_*), or a menu item's header = yes (MODEM_*). no: the caller's bytes from the start. A header from app_dmodem's handoff = yes brings the modem's line with it (SCM_RIGHTS): the session runs on that terminal itself, nothing copied. |
+| `header_timeout` | `10` | the call's details come first on each connection, NAME=value lines and an empty line: app_dmodem's header = yes (DMODEM_*), or a menu item's header = yes (MODEM_*). no: the caller's bytes from the start. A header from app_dmodem's handoff = yes brings the modem's line with it (SCM_RIGHTS): the session runs on that terminal itself, nothing copied. |
 | `trust_user` | `no` | yes: a header with MODEM_USER (another modemmenu's item, header = yes) logs the caller in without asking again. Only for a socket that nothing but trusted menus can connect to. |
 | `max_sessions` | `32` | connections at once; more are told the lines are busy. |
 
@@ -261,7 +261,7 @@ There may be any number of these, each with its own NAME.
 |---|---|---|
 | `key` | `B` | its key in the menu, one or more characters (default: its name's first letter) Also: `P`, `PW`, `S`, `M`, `L`, `LC`, `U`, `K`, `W`, `N`, `C`, `GO`. |
 | `aliases` | `...` | more words that select it (its name always does) Also: `dialup net`. |
-| `label` | `...` | its line in the menu. Also: `Bulletin board`, `PPP (dial-up networking)`, `Change your password`, `Shell`, `More services`, `Legend of the Red Dragon`, `Last callers`, `Upload a file (ZMODEM)`, `Kermit file server`, `The web (lynx)`, `Mail`, `Usenet news`, `Chat (IRC)`, `Gopherspace`. |
+| `label` | `...` | its line in the menu. Also: `Bulletin board`, `PPP (dial-up networking)`, `Change your password`, `Shell`, `More services`, `The BBS`, `Legend of the Red Dragon`, `Last callers`, `Upload a file (ZMODEM)`, `Kermit file server`, `The web (lynx)`, `Mail`, `Usenet news`, `Chat (IRC)`, `Gopherspace`. |
 | `mode` | `exec` | a program on the line: command (by /bin/sh -c); `passwd`: built in: the caller changes their password (min_password = 8 characters); `callers`: built in: the last callers (count = 10), the time, user and rate of each login (state_dir/callers, the latest 200; kept only with such an item); `tcp`: a TCP server, raw: host, port; send is sent first; `unix`: a server on a unix socket, raw: path; send too (tcp, telnet and rlogin take a path as well, for their protocol on a unix socket); `telnet`: a telnet server: host, port (23), terminal (ANSI); `rlogin`: an rlogin server: host, port (513), and rlogin_client_user ({password}), rlogin_server_user ({user}), rlogin_terminal (ansi/{baud}) Also: `rlogin`, `tcp`, `passwd`, `unix`, `callers`. |
 | `run_as` | `{user}` | exec as this system user (modemmenu must be root) |
 | `tty` | `raw` | the line as app_dmodem has it; sane: cooked, echo, CR to LF, for programs that want a terminal. Also: `sane`. |
@@ -271,6 +271,7 @@ There may be any number of these, each with its own NAME.
 | `connect_timeout` | `10` | seconds to reach a server. |
 | `terminal` | `ANSI` | telnet: the terminal type it tells the server ({term} and the other placeholders work) |
 | `header` | `no` | tcp, unix, telnet, rlogin: yes sends the session first, MODEM_* NAME=value lines and an empty line (the password only with pass_password), for modemmenu -serve or any program that reads it. Also: `yes`. |
+| `handoff` | `no` | unix with header = yes: yes hands the server the caller's line itself (SCM_RIGHTS, with the header) instead of copying bytes to it; the server gives it back by closing the connection (the bbs's listen with handoff = yes takes it) Also: `yes`. |
 | `users` | `alice` | bob these users ... |
 | `groups` | `sysops` | ... or members of these groups ([groups], or the system's for auth = system) Also: `dialup`. |
 | `min_baud` | `9600` | the connect rate at least this (unknown: no) |
@@ -289,7 +290,7 @@ There may be any number of these, each with its own NAME.
 | `time_warning` | `no` | no time warning in the middle of PPP's frames. |
 | `command` | `exec /usr/sbin/pppd nodetach noauth local lock passive {ppp_local}:{ppp_remote} ms-dns {ppp_dns} ms-dns {ppp_dns2} ipparam {user}` | no time warning in the middle of PPP's frames. Also: `exec "$SHELL" -l`, `cd /srv/doors/lord && exec dosemu -dumb -E "lord.bat $MODEM_NODE"`, `cd "$HOME/uploads" && exec rz -b -R -E`, `cd "$HOME" && exec kermit -Y -x`, `exec lynx -anonymous https://example.org/`, `exec mutt`, `exec tin -r`, `exec irssi -c 127.0.0.1 -n {user}`, `exec lynx -anonymous gopher://gopher.floodgap.com/`. |
 | `min_password` | `8` | See the section above. |
-| `path` | `/run/modemmenu/more.sock` | See the section above. |
+| `path` | `/run/modemmenu/more.sock` | See the section above. Also: `/run/bbs/handoff.sock`. |
 | `dropfile_dir` | `/srv/doors/lord/node{node}` | See the section above. |
 | `count` | `10` | See the section above. |
 

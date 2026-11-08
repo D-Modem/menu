@@ -156,7 +156,7 @@ func serve(s *settings, config string) int {
 
 	var (
 		mu       sync.Mutex
-		sessions = map[*os.File]bool{} // the pty masters
+		sessions = map[io.Closer]bool{} // what hangs each session up
 		wg       sync.WaitGroup
 	)
 	ch := make(chan os.Signal, 1)
@@ -192,7 +192,7 @@ func serve(s *settings, config string) int {
 		wg.Add(1)
 		go func() {
 			defer func() { <-slots; wg.Done() }()
-			serveConn(conn, srv, self, config, func(m *os.File, add bool) {
+			serveConn(conn, srv, self, config, func(m io.Closer, add bool) {
 				mu.Lock()
 				if add {
 					sessions[m] = true
@@ -203,7 +203,8 @@ func serve(s *settings, config string) int {
 			})
 		}()
 	}
-	// hang up every session: closing a master hangs up its pty
+	// hang up every session: closing a master hangs up its pty (a
+	// handed-over line's session gets SIGHUP)
 	mu.Lock()
 	for m := range sessions {
 		m.Close()
@@ -278,7 +279,7 @@ func peer(conn net.Conn) string {
 
 // serveConn: the header, then modemmenu on a new pty, its bytes to and from
 // the connection until either ends
-func serveConn(conn net.Conn, srv *serverSettings, self, config string, track func(*os.File, bool)) {
+func serveConn(conn net.Conn, srv *serverSettings, self, config string, track func(io.Closer, bool)) {
 	defer conn.Close()
 	who := peer(conn)
 	env := os.Environ()
@@ -290,12 +291,23 @@ func serveConn(conn net.Conn, srv *serverSettings, self, config string, track fu
 	}
 	env = keep
 	if srv.header {
-		h, err := readHeader(conn, srv.headerTimeout)
+		var h map[string]string
+		var line *os.File
+		var err error
+		if uc, ok := conn.(*net.UnixConn); ok {
+			h, line, err = readHeaderFD(uc, srv.headerTimeout)
+		} else {
+			h, err = readHeader(conn, srv.headerTimeout)
+		}
 		if err != nil {
 			logf("%s: %v", who, err)
 			return
 		}
 		env = append(env, headerEnv(h, srv.trustUser)...)
+		if line != nil {
+			serveLine(conn, line, who, env, self, config, srv, track)
+			return
+		}
 	}
 
 	master, slave, err := openPty()
@@ -332,6 +344,47 @@ func serveConn(conn net.Conn, srv *serverSettings, self, config string, track fu
 	track(master, false)
 	logf("%s: session pid %d ended", who, cmd.Process.Pid)
 }
+
+// serveLine: the session on a line handed over with the header (the
+// modem's terminal, app_dmodem's handoff = yes): modemmenu on it as its
+// controlling tty, nothing copied; the connection closing (the call
+// gone) hangs the session up, the session ending closes it (the call
+// hangs up)
+func serveLine(conn net.Conn, line *os.File, who string, env []string, self, config string, srv *serverSettings, track func(io.Closer, bool)) {
+	defer line.Close()
+	if _, err := unix.IoctlGetTermios(int(line.Fd()), unix.TCGETS); err != nil {
+		logf("%s: the line handed over is not a terminal", who)
+		return
+	}
+	cmd := exec.Command(self, "-config", config, "-upstream="+strconv.FormatBool(srv.trustUser))
+	cmd.Env = env
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = line, line, line
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
+	if err := cmd.Start(); err != nil {
+		logf("%s: %v", who, err)
+		return
+	}
+	line.Close()
+	logf("%s: session pid %d on the line handed over", who, cmd.Process.Pid)
+	hup := &hangup{pid: cmd.Process.Pid}
+	track(hup, true)
+	// nothing comes on the connection but its end
+	go func() {
+		io.Copy(io.Discard, conn)
+		hup.Close()
+	}()
+	cmd.Wait()
+	conn.Close()
+	track(hup, false)
+	logf("%s: session pid %d ended", who, cmd.Process.Pid)
+}
+
+// hangup: a session on a handed-over line, hung up by Close (SIGHUP to
+// its process group)
+type hangup struct{ pid int }
+
+// Close: SIGHUP to the session
+func (h *hangup) Close() error { return syscall.Kill(-h.pid, syscall.SIGHUP) }
 
 // openPty: a new pty, raw as app_dmodem makes it, master and slave
 func openPty() (*os.File, *os.File, error) {

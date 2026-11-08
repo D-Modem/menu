@@ -66,11 +66,49 @@ the connection, which hangs up the call.
 Many callers at once are many connections: app_dmodem connects each
 call by itself, and the server serves each connection in its own
 session, up to `max_sessions`.  An item that hands the caller on to a
-server (`mode = unix`, `tcp`, `telnet`, `rlogin`), a BBS for one,
-opens a connection of its own for that caller from their session and
-copies the bytes between it and the session's pty.  Nothing passes a
-descriptor (`SCM_RIGHTS`) from one process to the next: each hop copies,
-so each caller's bytes stay on their own connection all the way through.
+server (`mode = unix`, `tcp`, `telnet`, `rlogin`), a BBS for one, opens
+a connection of its own for that caller from their session and copies
+the bytes between it and the session's line.
+
+### The handoff: the line itself, nothing copied
+
+With app_dmodem's `handoff = yes` the modem's line is a pty, and its
+terminal comes with the header (`SCM_RIGHTS`).  The session then runs on
+that terminal as on a serial port: the menu, a shell and pppd (which
+needs a tty) are on the modem's line itself, and `-serve` copies nothing.
+The connection carries nothing more; it stays open while the session
+lasts.  The caller hanging up closes it and hangs the session up
+(`SIGHUP`); the session ending closes it, and app_dmodem hangs up once
+the last bytes are out.
+
+An item with `handoff = yes` (`mode = unix`, `header = yes`) does the
+same towards its server: the session's line goes to the server with the
+header, the menu waits, and when the server closes the connection the
+line is back (`after = menu` shows the menu again).  The BBS's
+`[listen]` with `handoff = yes` takes it.  Bytes the menu had read and
+not used, and the item's `send`, come on the connection right after the
+header.  The time limit still holds: at the deadline the menu closes the
+connection, which takes the line back.
+
+```
+; dmodem.conf
+[menu]
+mode = unix
+path = /run/modemmenu/modemmenu.sock
+header = yes
+handoff = yes
+
+; modemmenu.conf
+[item bbs]
+key = B
+mode = unix
+path = /run/bbs/handoff.sock
+header = yes
+handoff = yes
+after = menu
+```
+
+Without `handoff`, or over TCP, the bytes are copied as before.
 
 | `[server]` option | default | |
 |---|---|---|

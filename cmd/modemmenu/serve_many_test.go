@@ -6,6 +6,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -51,32 +52,29 @@ func startServe(t *testing.T, dir, conf, sock string) {
 	t.Fatalf("%s: modemmenu -serve is not listening: %s", sock, b)
 }
 
-// line: a caller on a connection, for a goroutine (no t.Fatal there):
-// what came so far, and waits that fail with an error
+// line: a caller on a connection (or a pty's master), for a goroutine
+// (no t.Fatal there): what came so far, and waits that fail with an
+// error
 type line struct {
-	conn net.Conn
+	conn io.ReadWriteCloser
+	ctl  net.Conn // a handed-over line's connection to the server
 	mu   sync.Mutex
 	got  strings.Builder
 	done chan struct{}
 }
 
-// dialLine: a caller connected to sock, the session header sent
-func dialLine(sock, header string) (*line, error) {
-	c, err := net.Dial("unix", sock)
-	if err != nil {
-		return nil, err
-	}
-	l := &line{conn: c, done: make(chan struct{})}
+// newLine: a caller on rw, what comes read as it comes
+func newLine(rw io.ReadWriteCloser) *line {
+	l := &line{conn: rw, done: make(chan struct{})}
 	go func() {
 		defer close(l.done)
-		r := bufio.NewReader(c)
 		buf := make([]byte, 1024)
 		for {
-			n, err := r.Read(buf)
+			n, err := rw.Read(buf)
 			if n > 0 {
 				// the terminal asked where its cursor is: 24x80
 				if strings.Contains(string(buf[:n]), "\x1b[6n") {
-					c.Write([]byte("\x1b[24;80R"))
+					rw.Write([]byte("\x1b[24;80R"))
 				}
 				l.mu.Lock()
 				l.got.Write(buf[:n])
@@ -87,6 +85,16 @@ func dialLine(sock, header string) (*line, error) {
 			}
 		}
 	}()
+	return l
+}
+
+// dialLine: a caller connected to sock, the session header sent
+func dialLine(sock, header string) (*line, error) {
+	c, err := net.Dial("unix", sock)
+	if err != nil {
+		return nil, err
+	}
+	l := newLine(c)
 	_, err = c.Write([]byte(header + "\n"))
 	return l, err
 }
