@@ -1,0 +1,15 @@
+# the dial-up callers' network: VRF, egress, firewall (dialup.conf)
+[Unit]
+Description=modemmenu dial-up network
+After=network-online.target
+Wants=network-online.target
+Before=modemmenu.service modemmenu-dns.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/modemmenu-dialup up
+ExecStop=/usr/local/sbin/modemmenu-dialup down
+
+[Install]
+WantedBy=multi-user.target

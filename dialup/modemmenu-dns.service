@@ -1,0 +1,14 @@
+# the dial-up callers' DNS server: dnsmasq in their VRF, on SERVER_ADDR,
+# with the service overrides of /etc/modemmenu/dns.d
+[Unit]
+Description=modemmenu dial-up DNS
+Requires=modemmenu-dialup.service
+After=modemmenu-dialup.service
+
+[Service]
+ExecStart=/usr/sbin/ip vrf exec dialup /usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/modemmenu/dnsmasq.conf
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -108,6 +108,17 @@ func runExec(t *term.Term, cfg *settings, it *menuItem, s *session, deadline tim
 			"MODEM_DROPFILE="+df.files[0])
 	}
 
+	// a PPP caller's address, from [ppp_pool]
+	lease, err := leaseFor(cfg, it.command, s.User)
+	if err != nil {
+		return fmt.Errorf("ppp_pool: %v", err)
+	}
+	if lease != nil {
+		defer lease.close()
+		env = lease.add(v, env)
+		logf("%s: user=%s gets %s", it.name, s.User, lease.remote)
+	}
+
 	cmd := exec.Command("/bin/sh", "-c", config.Expand(it.command, v, shellQuote))
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stdout
 	if cred != nil {
@@ -141,7 +152,7 @@ func runExec(t *term.Term, cfg *settings, it *menuItem, s *session, deadline tim
 		})
 		defer timer.Stop()
 	}
-	err := cmd.Wait()
+	err = cmd.Wait()
 	running(nil)
 	if timedOut.Load() {
 		return errTimeLimit

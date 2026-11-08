@@ -227,8 +227,6 @@ func autoPPP(t *term.Term, s *settings, sess *session) int {
 
 	v := sess.vars(false)
 	v["auth_socket"] = a.path()
-	cmd := exec.Command("/bin/sh", "-c", config.Expand(s.autoppp.command, v, shellQuote))
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stdout
 	env := make([]string, 0, 32)
 	for _, e := range os.Environ() {
 		if !strings.HasPrefix(e, "MODEM_") {
@@ -236,6 +234,20 @@ func autoPPP(t *term.Term, s *settings, sess *session) int {
 		}
 	}
 	env = append(env, sess.environ(false)...)
+	// the caller's address, from [ppp_pool]: taken before the login (pppd
+	// needs it on its command line), given back when pppd ends
+	lease, err := leaseFor(s, s.autoppp.command, "")
+	if err != nil {
+		logf("autoppp: ppp_pool: %v %v", err, sess)
+		return 1
+	}
+	if lease != nil {
+		defer lease.close()
+		env = lease.add(v, env)
+		logf("autoppp: %s for the caller %v", lease.remote, sess)
+	}
+	cmd := exec.Command("/bin/sh", "-c", config.Expand(s.autoppp.command, v, shellQuote))
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stdout
 	env = append(env, "MODEMMENU_AUTH_SOCKET="+a.path())
 	cmd.Env = env
 	before := t.SetMode("raw")

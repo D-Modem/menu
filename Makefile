@@ -9,6 +9,9 @@
 #                        plugin into pppd's plugin directory
 #   make install-freepbx into $(BINDIR), freepbx/'s samples into
 #                        /etc/modemmenu and modemmenu.service into systemd
+#   make install-dialup  the PPP callers' network (docs/dialup-network.md):
+#                        modemmenu-dialup, pppd's hooks, the units, and
+#                        dialup.conf, dnsmasq.conf, dns.d/ in /etc/modemmenu
 
 GO ?= go
 BINDIR ?= /usr/local/bin
@@ -65,4 +68,19 @@ clean:
 	rm -f modemmenu pppd/modemmenu.so
 
 FORCE:
-.PHONY: all test install install-freepbx clean FORCE
+.PHONY: all test install install-freepbx install-dialup clean FORCE
+
+# the PPP callers' network: files already in /etc/modemmenu are kept
+SBINDIR ?= /usr/local/sbin
+install-dialup:
+	install -D -m 755 dialup/modemmenu-dialup $(DESTDIR)$(SBINDIR)/modemmenu-dialup
+	install -D -m 755 dialup/ip-up $(DESTDIR)/etc/ppp/ip-up.d/modemmenu-dialup
+	install -D -m 755 dialup/ip-down $(DESTDIR)/etc/ppp/ip-down.d/modemmenu-dialup
+	install -D -m 644 dialup/modemmenu-dialup.service $(DESTDIR)/etc/systemd/system/modemmenu-dialup.service
+	install -D -m 644 dialup/modemmenu-dns.service $(DESTDIR)/etc/systemd/system/modemmenu-dns.service
+	[ -e $(DESTDIR)$(FREEPBX_CONF_DIR)/dialup.conf ] || \
+		install -D -m 644 dialup/dialup.conf.sample $(DESTDIR)$(FREEPBX_CONF_DIR)/dialup.conf
+	[ -e $(DESTDIR)$(FREEPBX_CONF_DIR)/dnsmasq.conf ] || \
+		install -D -m 644 dialup/dnsmasq.conf $(DESTDIR)$(FREEPBX_CONF_DIR)/dnsmasq.conf
+	[ -e $(DESTDIR)$(FREEPBX_CONF_DIR)/dns.d/services.conf ] || \
+		install -D -m 644 dialup/dns.d/services.conf $(DESTDIR)$(FREEPBX_CONF_DIR)/dns.d/services.conf

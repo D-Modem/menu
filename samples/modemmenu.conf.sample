@@ -252,6 +252,20 @@ max_sessions = 32
 ; requests at once
 ;max_clients = 16
 
+; The PPP callers' addresses: a command that names {ppp_remote} (or
+; {ppp_local}, {ppp_dns}, {ppp_dns2}) takes the first free address of range
+; for the call, so that several lines run PPP at once, and gives it back when
+; pppd ends.  They are lock files in state_dir/ppp-pool (each with who has
+; it), shared by every modemmenu on the host.  local is the server's end of
+; every link; dns, the DNS servers offered (ms-dns), local by default (the
+; resolver of dialup/: docs/dialup-network.md).  Pick a subnet none of the
+; host's networks use.  No range: no pool.  The scripts see MODEM_PPP_LOCAL,
+; MODEM_PPP_REMOTE, MODEM_PPP_DNS and MODEM_PPP_DNS2
+[ppp_pool]
+local = 10.77.0.1
+range = 10.77.0.10-10.77.0.250
+;dns = 10.77.0.1
+
 ; AutoPPP: a dialer that starts PPP at once (Windows' Dial-Up Networking,
 ; most others) sends a PPP frame where the login prompt wants a name; then
 ; command runs on the line instead (pppd), and its modemmenu.so plugin
@@ -260,10 +274,11 @@ max_sessions = 32
 ; backends check it as at the prompt, then item's access rules, then the
 ; time limits, whose time left becomes pppd's maxconnect.  PAP only: CHAP
 ; needs the passwords kept where they can be read back.  Fix the addresses
-; (local:remote): the plugin lets the peer have the one pppd gives it
+; (local:remote, from [ppp_pool]): the plugin lets the peer have the one
+; pppd gives it
 [autoppp]
 enabled = no
-command = exec /usr/sbin/pppd nodetach lock passive local 192.168.77.1:192.168.77.2 ms-dns 192.168.77.1 require-pap refuse-chap refuse-mschap refuse-mschap-v2 refuse-eap plugin modemmenu.so ipparam autoppp
+command = exec /usr/sbin/pppd nodetach lock passive local {ppp_local}:{ppp_remote} ms-dns {ppp_dns} ms-dns {ppp_dns2} require-pap refuse-chap refuse-mschap refuse-mschap-v2 refuse-eap plugin modemmenu.so ipparam autoppp
 ; the access rules (groups, min_baud, callerids...) a PPP login must pass
 item = ppp
 
@@ -385,7 +400,8 @@ after = menu
 ;send = "{user}\r{password}\r"
 
 ; PPP: pppd on the line.  The caller is logged in already: noauth, and
-; ipparam hands the user to /etc/ppp/ip-up (as $6), which also sees MODEM_*
+; ipparam hands the user to /etc/ppp/ip-up (as $6), which also sees MODEM_*.
+; Each caller gets an address of [ppp_pool]
 [item ppp]
 key = P
 aliases = dialup net
@@ -394,7 +410,7 @@ label = PPP (dial-up networking)
 ; no time warning in the middle of PPP's frames
 time_warning = no
 mode = exec
-command = exec /usr/sbin/pppd nodetach noauth local lock passive 192.168.77.1:192.168.77.2 ms-dns 192.168.77.1 ipparam {user}
+command = exec /usr/sbin/pppd nodetach noauth local lock passive {ppp_local}:{ppp_remote} ms-dns {ppp_dns} ms-dns {ppp_dns2} ipparam {user}
 
 ; the caller's password changed where their account is: the users file,
 ; SQL (update_query), LDAP (Password Modify, as the user) or the system

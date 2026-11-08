@@ -90,6 +90,7 @@ type settings struct {
 	limits     limitSettings
 	dropfile   dropfileSettings
 	autoppp    autopppSettings
+	pppPool    pppPoolSettings
 	terminal   terminalSettings
 	authd      *authdSettings // nil: no auth socket
 	menuTitle  string
@@ -184,6 +185,9 @@ func loadSettings(path string) (*settings, error) {
 	if s.autoppp, err = loadAutoPPP(c.Section("autoppp")); err != nil {
 		return nil, err
 	}
+	if s.pppPool, err = loadPPPPool(c.Section("ppp_pool")); err != nil {
+		return nil, err
+	}
 	if s.terminal, err = loadTerminal(c.Section("terminal")); err != nil {
 		return nil, err
 	}
@@ -239,6 +243,9 @@ func loadSettings(path string) (*settings, error) {
 		return nil, err
 	}
 	if err := checkDropfiles(s); err != nil {
+		return nil, err
+	}
+	if err := checkPool(s); err != nil {
 		return nil, err
 	}
 	if s.autoppp.item != "" && s.selects(strings.ToUpper(s.autoppp.item)) == nil {

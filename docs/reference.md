@@ -23,6 +23,7 @@ full.
 | [`[sql]`](#sql) | SQL: query gets args (user, password, in that order of placeholders) and returns one column: the stored password, checked as hash says (auto: by its prefix as in [file]; or bcrypt, sha256, sha512, plain). |
 | [`[server]`](#server) | modemmenu -serve: one modemmenu for all calls, on a unix socket (or tcp:host:port). |
 | [`[authd]`](#authd) | The auth socket: the BBS's other logins (telnet, SSH, the web) ask the backends above for a user's password through it, so that it is the same one. |
+| [`[ppp_pool]`](#ppp_pool) | The PPP callers' addresses: a command that names {ppp_remote} (or {ppp_local}, {ppp_dns}, {ppp_dns2}) takes the first free address of range for the call, so that several lines run PPP at once, and gives it back when pppd ends. |
 | [`[autoppp]`](#autoppp) | AutoPPP: a dialer that starts PPP at once (Windows' Dial-Up Networking, most others) sends a PPP frame where the login prompt wants a name; then command runs on the line instead (pppd), and its modemmenu.so plugin (make builds it with ppp-dev's headers; make install puts it in pppd's plugin directory) asks this call's auth socket for the PAP login: the backends check it as at the prompt, then item's access rules, then the time limits, whose time left becomes pppd's maxconnect. |
 | [`[dropfile]`](#dropfile) | drop files for doors (an exec item's dropfile =): what they say of the BBS, and how the door reaches the caller. |
 | [`[menu]`](#menu) | The menu: its title, prompt, items and the words that hang up. |
@@ -200,14 +201,24 @@ The auth socket: the BBS's other logins (telnet, SSH, the web) ask the backends 
 | `allow_users` | `bbs` | See the section above. |
 | `max_clients` | `16` | requests at once. |
 
+## `[ppp_pool]`
+
+The PPP callers' addresses: a command that names {ppp_remote} (or {ppp_local}, {ppp_dns}, {ppp_dns2}) takes the first free address of range for the call, so that several lines run PPP at once, and gives it back when pppd ends.  They are lock files in state_dir/ppp-pool (each with who has it), shared by every modemmenu on the host.  local is the server's end of every link; dns, the DNS servers offered (ms-dns), local by default (the resolver of dialup/: docs/dialup-network.md).  Pick a subnet none of the host's networks use.  No range: no pool.  The scripts see MODEM_PPP_LOCAL, MODEM_PPP_REMOTE, MODEM_PPP_DNS and MODEM_PPP_DNS2.
+
+| key | sample | what it does |
+|---|---|---|
+| `local` | `10.77.0.1` | See the section above. |
+| `range` | `10.77.0.10-10.77.0.250` | See the section above. |
+| `dns` | `10.77.0.1` | See the section above. |
+
 ## `[autoppp]`
 
-AutoPPP: a dialer that starts PPP at once (Windows' Dial-Up Networking, most others) sends a PPP frame where the login prompt wants a name; then command runs on the line instead (pppd), and its modemmenu.so plugin (make builds it with ppp-dev's headers; make install puts it in pppd's plugin directory) asks this call's auth socket for the PAP login: the backends check it as at the prompt, then item's access rules, then the time limits, whose time left becomes pppd's maxconnect.  PAP only: CHAP needs the passwords kept where they can be read back.  Fix the addresses (local:remote): the plugin lets the peer have the one pppd gives it.
+AutoPPP: a dialer that starts PPP at once (Windows' Dial-Up Networking, most others) sends a PPP frame where the login prompt wants a name; then command runs on the line instead (pppd), and its modemmenu.so plugin (make builds it with ppp-dev's headers; make install puts it in pppd's plugin directory) asks this call's auth socket for the PAP login: the backends check it as at the prompt, then item's access rules, then the time limits, whose time left becomes pppd's maxconnect.  PAP only: CHAP needs the passwords kept where they can be read back.  Fix the addresses (local:remote, from [ppp_pool]): the plugin lets the peer have the one pppd gives it.
 
 | key | sample | what it does |
 |---|---|---|
 | `enabled` | `no` | See the section above. |
-| `command` | `exec /usr/sbin/pppd nodetach lock passive local 192.168.77.1:192.168.77.2 ms-dns 192.168.77.1 require-pap refuse-chap refuse-mschap refuse-mschap-v2 refuse-eap plugin modemmenu.so ipparam autoppp` | See the section above. |
+| `command` | `exec /usr/sbin/pppd nodetach lock passive local {ppp_local}:{ppp_remote} ms-dns {ppp_dns} ms-dns {ppp_dns2} require-pap refuse-chap refuse-mschap refuse-mschap-v2 refuse-eap plugin modemmenu.so ipparam autoppp` | See the section above. |
 | `item` | `ppp` | the access rules (groups, min_baud, callerids...) a PPP login must pass. |
 
 ## `[dropfile]`
@@ -276,7 +287,7 @@ There may be any number of these, each with its own NAME.
 | `rlogin_terminal` | `ansi/{baud}` | See the section above. |
 | `send` | `{user}\r{password}\r` | or a BBS that reads its login from the line: |
 | `time_warning` | `no` | no time warning in the middle of PPP's frames. |
-| `command` | `exec /usr/sbin/pppd nodetach noauth local lock passive 192.168.77.1:192.168.77.2 ms-dns 192.168.77.1 ipparam {user}` | no time warning in the middle of PPP's frames. Also: `exec "$SHELL" -l`, `cd /srv/doors/lord && exec dosemu -dumb -E "lord.bat $MODEM_NODE"`, `cd "$HOME/uploads" && exec rz -b -R -E`, `cd "$HOME" && exec kermit -Y -x`, `exec lynx -anonymous https://example.org/`, `exec mutt`, `exec tin -r`, `exec irssi -c 127.0.0.1 -n {user}`, `exec lynx -anonymous gopher://gopher.floodgap.com/`. |
+| `command` | `exec /usr/sbin/pppd nodetach noauth local lock passive {ppp_local}:{ppp_remote} ms-dns {ppp_dns} ms-dns {ppp_dns2} ipparam {user}` | no time warning in the middle of PPP's frames. Also: `exec "$SHELL" -l`, `cd /srv/doors/lord && exec dosemu -dumb -E "lord.bat $MODEM_NODE"`, `cd "$HOME/uploads" && exec rz -b -R -E`, `cd "$HOME" && exec kermit -Y -x`, `exec lynx -anonymous https://example.org/`, `exec mutt`, `exec tin -r`, `exec irssi -c 127.0.0.1 -n {user}`, `exec lynx -anonymous gopher://gopher.floodgap.com/`. |
 | `min_password` | `8` | See the section above. |
 | `path` | `/run/modemmenu/more.sock` | See the section above. |
 | `dropfile_dir` | `/srv/doors/lord/node{node}` | See the section above. |

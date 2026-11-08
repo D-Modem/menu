@@ -1,0 +1,165 @@
+#!/bin/bash
+# modemmenu-dialup: the dial-up callers' network (dialup.conf)
+#
+#   modemmenu-dialup up        the VRF, its egress, the firewall, sysctls
+#   modemmenu-dialup down      all of it removed
+#   modemmenu-dialup attach IF a caller's PPP link into it (ip-up.d)
+#   modemmenu-dialup detach IF and out again (ip-down.d)
+#   modemmenu-dialup status    what is there
+#
+# Copyright (C) 2026 D-Modem Authors
+# SPDX-License-Identifier: AGPL-3.0-only
+set -eu
+
+CONF=${MODEMMENU_DIALUP_CONF:-/etc/modemmenu/dialup.conf}
+# shellcheck source=/dev/null
+. "$CONF"
+VRF=${VRF:-dialup} VRF_TABLE=${VRF_TABLE:-77}
+DUMMY=${VRF}0
+NFT_TABLE=modemmenu_dialup
+
+die() { echo "modemmenu-dialup: $*" >&2; exit 1; }
+
+# the interface the callers' traffic leaves by ("" for none)
+egress_if() {
+	case $EGRESS in
+	vlan) echo "$UPLINK.$VLAN_ID" ;;
+	uplink) echo "$UPLINK" ;;
+	none) echo "" ;;
+	*) die "EGRESS=$EGRESS (vlan, uplink or none)" ;;
+	esac
+}
+
+# a list of words as an nft set's elements
+elems() { echo "$*" | tr -s ' \t' ',' | sed 's/^,//; s/,$//'; }
+
+firewall() {
+	local out allow block tcp udp internet=""
+	out=$(egress_if)
+	# shellcheck disable=SC2153 # INTERNET is dialup.conf's
+	[ -z "$out" ] || [ "$INTERNET" != yes ] || internet="oifname \"$out\" accept"
+	allow=$(elems "$ALLOW_CIDRS") block=$(elems "$BLOCK_CIDRS")
+	tcp=$(elems "$HOST_TCP_PORTS") udp=$(elems "$HOST_UDP_PORTS")
+	nft delete table inet $NFT_TABLE 2>/dev/null || true
+	nft -f - <<NFT
+table inet $NFT_TABLE {
+	# the callers' links, added and removed by ip-up.d / ip-down.d, and
+	# the VRF device (the kernel names it as the way in of what it routes)
+	set links { type ifname; elements = { "$VRF" } }
+	set allow { type ipv4_addr; flags interval; ${allow:+elements = { $allow }} }
+	set block { type ipv4_addr; flags interval; ${block:+elements = { $block }} }
+	set tcp_ports { type inet_service; ${tcp:+elements = { $tcp }} }
+	set udp_ports { type inet_service; ${udp:+elements = { $udp }} }
+
+	chain input {
+		type filter hook input priority filter - 1; policy accept;
+		iifname != @links return
+		ct state established,related accept
+		ip saddr != $SUBNET drop
+		meta l4proto icmp icmp type echo-request accept
+		ip daddr $SERVER_ADDR tcp dport @tcp_ports accept
+		ip daddr $SERVER_ADDR udp dport @udp_ports accept
+		drop
+	}
+	chain forward {
+		type filter hook forward priority filter - 1; policy accept;
+		iifname != @links return
+		ct state established,related accept
+		meta nfproto ipv6 drop
+		ip saddr != $SUBNET drop
+		ip daddr @allow accept
+		ip daddr @block drop
+		$internet
+		drop
+	}
+}
+NFT
+	nft delete table ip ${NFT_TABLE}_nat 2>/dev/null || true
+	if [ -n "$out" ] && [ "$NAT" = yes ]; then
+		nft -f - <<NFT
+table ip ${NFT_TABLE}_nat {
+	chain postrouting {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "$out" ip saddr $SUBNET masquerade
+	}
+}
+NFT
+	fi
+}
+
+up() {
+	down 2>/dev/null || true
+	sysctl -qw net.ipv4.ip_forward=1
+	# sockets of the host's services (bound in no VRF) answer the callers
+	sysctl -qw net.ipv4.tcp_l3mdev_accept=1 net.ipv4.udp_l3mdev_accept=1
+
+	ip link add "$VRF" type vrf table "$VRF_TABLE"
+	ip link set "$VRF" up
+	# nothing found in the VRF's table: unreachable, never the host's table
+	ip route add unreachable default metric 4278198272 vrf "$VRF"
+	# SERVER_ADDR, there while no caller is: the DNS server binds to it
+	ip link add "$DUMMY" type dummy
+	ip link set "$DUMMY" master "$VRF"
+	ip addr add "$SERVER_ADDR/32" dev "$DUMMY"
+	ip link set "$DUMMY" up
+
+	case $EGRESS in
+	vlan)
+		ip link add link "$UPLINK" name "$UPLINK.$VLAN_ID" type vlan id "$VLAN_ID"
+		ip link set "$UPLINK.$VLAN_ID" master "$VRF"
+		ip addr add "$VLAN_ADDR" dev "$UPLINK.$VLAN_ID"
+		ip link set "$UPLINK.$VLAN_ID" up
+		ip route add default via "$VLAN_GATEWAY" vrf "$VRF"
+		;;
+	uplink)
+		local gw=$UPLINK_GATEWAY
+		[ -n "$gw" ] || gw=$(ip -4 route show default dev "$UPLINK" | awk '{print $3; exit}')
+		[ -n "$gw" ] || die "no default gateway on $UPLINK: set UPLINK_GATEWAY"
+		# out by the host's uplink (a route leak out of the VRF), and the
+		# answers, once NAT gives them back their caller's address, in
+		ip route add default via "$gw" dev "$UPLINK" table "$VRF_TABLE"
+		ip route add "$SUBNET" dev "$VRF"
+		;;
+	none) ;;
+	*) die "EGRESS=$EGRESS (vlan, uplink or none)" ;;
+	esac
+	firewall
+}
+
+down() {
+	nft delete table inet $NFT_TABLE 2>/dev/null || true
+	nft delete table ip ${NFT_TABLE}_nat 2>/dev/null || true
+	ip route del "$SUBNET" dev "$VRF" 2>/dev/null || true
+	[ "$EGRESS" != vlan ] || ip link del "$UPLINK.$VLAN_ID" 2>/dev/null || true
+	ip link del "$DUMMY" 2>/dev/null || true
+	ip link del "$VRF" 2>/dev/null || true
+}
+
+attach() {
+	ip link show "$VRF" >/dev/null 2>&1 || die "no $VRF: modemmenu-dialup up first"
+	# filtered first, then moved: the link is never open
+	nft add element inet $NFT_TABLE links "{ $1 }"
+	ip link set dev "$1" master "$VRF"
+}
+
+detach() {
+	nft delete element inet $NFT_TABLE links "{ $1 }" 2>/dev/null || true
+}
+
+status() {
+	ip -d link show "$VRF" 2>/dev/null || echo "no $VRF"
+	echo "--- table $VRF_TABLE"
+	ip route show vrf "$VRF" 2>/dev/null || true
+	echo "--- links"
+	ip -br link show master "$VRF" 2>/dev/null || true
+	nft list set inet $NFT_TABLE links 2>/dev/null || true
+}
+
+case ${1:-} in
+up) up ;;
+down) down ;;
+attach) [ -n "${2:-}" ] || die "attach IFACE"; attach "$2" ;;
+detach) [ -n "${2:-}" ] || die "detach IFACE"; detach "$2" ;;
+status) status ;;
+*) echo "usage: modemmenu-dialup up|down|status|attach IFACE|detach IFACE" >&2; exit 2 ;;
+esac

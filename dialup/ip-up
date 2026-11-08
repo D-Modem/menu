@@ -1,0 +1,10 @@
+#!/bin/sh
+# /etc/ppp/ip-up.d/modemmenu-dialup: a dial-up caller's link (its local
+# address is dialup.conf's SERVER_ADDR) into the callers' VRF and
+# firewall; pppd's other links are left alone
+CONF=/etc/modemmenu/dialup.conf
+[ -r "$CONF" ] || exit 0
+# shellcheck source=/dev/null
+. "$CONF"
+[ "${PPP_LOCAL:-}" = "$SERVER_ADDR" ] || exit 0
+exec /usr/local/sbin/modemmenu-dialup attach "$PPP_IFACE"
