@@ -230,7 +230,9 @@ socket_mode = 0660
 ;socket_group = asterisk
 ; the call's details come first on each connection, NAME=value lines and an
 ; empty line: app_dmodem's header = yes (DMODEM_*), or a menu item's
-; header = yes (MODEM_*).  no: the caller's bytes from the start
+; header = yes (MODEM_*).  no: the caller's bytes from the start.  A
+; header from app_dmodem's handoff = yes brings the modem's line with it
+; (SCM_RIGHTS): the session runs on that terminal itself, nothing copied
 header = yes
 header_timeout = 10
 ; yes: a header with MODEM_USER (another modemmenu's item, header = yes)
@@ -356,6 +358,11 @@ hotkeys = no
 ;                        first, MODEM_* NAME=value lines and an empty line
 ;                        (the password only with pass_password), for
 ;                        modemmenu -serve or any program that reads it
+;   handoff = no         unix with header = yes: yes hands the server the
+;                        caller's line itself (SCM_RIGHTS, with the header)
+;                        instead of copying bytes to it; the server gives
+;                        it back by closing the connection (the bbs's
+;                        listen with handoff = yes takes it)
 ;
 ; Who sees an item (all that are set must pass; the others neither see nor
 ; can choose it):
@@ -441,6 +448,17 @@ after = menu
 ;mode = unix
 ;path = /run/modemmenu/more.sock
 ;header = yes
+;after = menu
+
+; the BBS with the caller's line itself (the bbs's [listen] handoff = yes):
+; nothing copied between them
+;[item bbs]
+;key = B
+;label = The BBS
+;mode = unix
+;path = /run/bbs/handoff.sock
+;header = yes
+;handoff = yes
 ;after = menu
 
 ; More items, to copy into items = above.  Each needs its program installed;

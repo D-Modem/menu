@@ -47,6 +47,7 @@ type menuItem struct {
 	port          int
 	path          string // a unix socket instead of host and port
 	header        bool   // the session header first
+	handoff       bool   // mode unix: the line itself to the server
 	send          string
 	rloginLocal   string
 	rloginUser    string
@@ -288,6 +289,12 @@ func loadItem(name string, sec *config.Section) (*menuItem, error) {
 	it.path = sec.Get("path", "")
 	if it.header, err = sec.Bool("header", false); err != nil {
 		return nil, err
+	}
+	if it.handoff, err = sec.Bool("handoff", false); err != nil {
+		return nil, err
+	}
+	if it.handoff && (strings.ToLower(sec.Get("mode", "")) != "unix" || !it.header) {
+		return nil, fmt.Errorf("[item %s] handoff = yes needs mode = unix and header = yes", name)
 	}
 	it.rloginLocal = sec.Get("rlogin_client_user", "{password}")
 	it.rloginUser = sec.Get("rlogin_server_user", "{user}")

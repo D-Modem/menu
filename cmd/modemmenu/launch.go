@@ -51,6 +51,9 @@ func launch(t *term.Term, cfg *settings, it *menuItem, s *session, deadline time
 	case "exec":
 		return runExec(t, cfg, it, s, deadline, logf)
 	default:
+		if it.handoff {
+			return runHandoff(t, it, s, deadline)
+		}
 		return runTCP(t, it, s, deadline)
 	}
 }
