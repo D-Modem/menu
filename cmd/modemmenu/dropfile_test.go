@@ -222,7 +222,7 @@ prompt = "\r\nDown ({time_left}): "
 [item nap]
 command = echo "DOWN left=$MODEM_SECONDS_LEFT"; exec sleep 60
 `, users, sock)), 0o600)
-	srv := exec.Command(bin, "-config", down, "-serve")
+	srv := exec.Command(bin, "-config", lineMenu(down), "-serve")
 	if err := srv.Start(); err != nil {
 		t.Fatal(err)
 	}

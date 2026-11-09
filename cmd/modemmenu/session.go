@@ -39,6 +39,11 @@ type session struct {
 	TermName string `json:"term_name"` // what it said it is: xterm(390), VT220, SyncTERM (CTerm 1.316)
 	Rows     string `json:"rows"`
 	Cols     string `json:"cols"`
+	// the characters it shows: utf8, cp437 (SyncTERM), 8bit (not UTF-8),
+	// "" not asked
+	charset string
+	// a DEC terminal itself (by its DA2), not an emulator: no colors
+	hardware bool
 	// an upstream menu's deadline, from its session header
 	upstreamDeadline time.Time
 

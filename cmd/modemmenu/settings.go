@@ -41,6 +41,7 @@ type menuItem struct {
 	key           string   // shown in the menu
 	choices       []string // what selects it, upper case: key, name, aliases
 	label         string
+	help          string // a line of what it is, in the full-screen menu
 	mode          string // exec, tcp, rlogin, telnet
 	command       string
 	host          string
@@ -99,6 +100,8 @@ type settings struct {
 	menuPrompt string
 	hangup     []string // what hangs up, upper case; the first one shown
 	hotkeys    bool     // one key selects, without a line end
+	fullscreen bool     // the menu full screen on terminals that can have it
+	path       string   // the configuration file's
 	items      []*menuItem
 	backends   []auth.Authenticator
 }
@@ -110,7 +113,7 @@ func loadSettings(path string) (*settings, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &settings{}
+	s := &settings{path: path}
 	g := c.Section("general")
 	s.log = g.Get("log", "syslog")
 	s.banner = config.Unescape(g.Get("banner", `\r\nD-Modem\r\n`))
@@ -220,6 +223,13 @@ func loadSettings(path string) (*settings, error) {
 	if s.hotkeys, err = m.Bool("hotkeys", false); err != nil {
 		return nil, err
 	}
+	switch fs := strings.ToLower(m.Get("fullscreen", "auto")); fs {
+	case "auto", "yes":
+		s.fullscreen = true
+	case "no":
+	default:
+		return nil, fmt.Errorf("[menu] fullscreen: %q (auto or no)", fs)
+	}
 	keys := map[string]string{}
 	for _, h := range s.hangup {
 		keys[h] = "[menu] hangup"
@@ -286,6 +296,7 @@ func loadItem(name string, sec *config.Section) (*menuItem, error) {
 		}
 	}
 	it.label = sec.Get("label", name)
+	it.help = sec.Get("help", "")
 	it.mode = strings.ToLower(sec.Get("mode", "exec"))
 	it.command = sec.Get("command", "")
 	it.host = sec.Get("host", "127.0.0.1")
@@ -307,7 +318,7 @@ func loadItem(name string, sec *config.Section) (*menuItem, error) {
 	it.runAs = sec.Get("run_as", "")
 	it.tty = strings.ToLower(sec.Get("tty", "raw"))
 	defAfter := "hangup"
-	if m := strings.ToLower(sec.Get("mode", "")); m == "passwd" || m == "callers" {
+	if m := strings.ToLower(sec.Get("mode", "")); m == "passwd" || m == "callers" || m == "setup" {
 		// a password changed is no reason to hang up
 		defAfter = "menu"
 	}
@@ -366,6 +377,14 @@ func loadItem(name string, sec *config.Section) (*menuItem, error) {
 	switch it.mode {
 	case "passwd", "callers":
 		// built in: no command, no server
+	case "setup":
+		// the configuration changed from the line: for some only
+		if len(it.access.users) == 0 && len(it.access.groups) == 0 {
+			return nil, fmt.Errorf("[item %s] mode = setup needs users or groups (the sysops')", name)
+		}
+		if it.access.guest {
+			return nil, fmt.Errorf("[item %s] mode = setup is not for guests", name)
+		}
 	case "exec":
 		if it.command == "" {
 			return nil, fmt.Errorf("[item %s] mode = exec needs a command", name)
@@ -381,7 +400,7 @@ func loadItem(name string, sec *config.Section) (*menuItem, error) {
 			return nil, fmt.Errorf("[item %s] path: %q (an absolute path)", name, it.path)
 		}
 	default:
-		return nil, fmt.Errorf("[item %s] mode: %q (exec, tcp, unix, telnet, rlogin, passwd or callers)", name, it.mode)
+		return nil, fmt.Errorf("[item %s] mode: %q (exec, tcp, unix, telnet, rlogin, passwd, callers or setup)", name, it.mode)
 	}
 	if it.tty != "raw" && it.tty != "sane" {
 		return nil, fmt.Errorf("[item %s] tty: %q (raw or sane)", name, it.tty)

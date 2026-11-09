@@ -82,7 +82,7 @@ label = Info
 command = echo "on $(tty | cut -c1-8) dialed=$MODEM_DIALED rate=$MODEM_RATE date=$MODEM_DATE auth=$MODEM_AUTH user=$MODEM_USER pw=$MODEM_PASSWORD up=$MODEMMENU_UPSTREAM_USER"
 `, filepath.Join(dir, "server.log"), users, sock)), 0o600)
 
-	srv := exec.Command(bin, "-config", conf, "-serve")
+	srv := exec.Command(bin, "-config", lineMenu(conf), "-serve")
 	if err := srv.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ header = yes
 `, users, sock)), 0o600)
 	m, s := testPty(t)
 	defer m.Close()
-	cmd := exec.Command(bin, "-config", front)
+	cmd := exec.Command(bin, "-config", lineMenu(front))
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s, s, s
 	cmd.Env = append(os.Environ(), "DMODEM_RATE=26400/26400", "DMODEM_DIALED=5552000")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}

@@ -65,7 +65,8 @@ mode = passwd
 Comments start with `;` or `#`, on a line of their own or after a value
 (following a space or tab, outside `"quotes"`); `\;` and `\#` are the
 characters themselves.  `modemmenu -check -config FILE` checks a
-configuration.
+configuration, and `modemmenu -setup -config FILE` changes it on a full
+screen ([the sysop's setup](setup.md)).
 
 ## The connect rate
 
@@ -170,6 +171,44 @@ menu shows the key, its labels lined up.
   are a configuration error.
 - `[menu] title`, `prompt` and `items` (the order) set the rest; see
   the sample.
+
+## The full-screen menu
+
+A caller whose terminal can have it (ANSI, or a VT that said what it
+is, of 40x14 at least) gets the menu full screen: the items in a window
+on a blue desk, the welcome at its top, the bar moved with the cursor
+keys (or an item's first letter) and Enter, or an item's key in `[ ]`
+starting it at once.  The motd comes up in a box over it (one with
+ANSI's escapes is shown as it is first, then "Press any key").  An item's
+`help` is shown under the menu; the bar at the top has the user, the
+rate and the time, the one at the foot the minutes left.  Esc asks
+before hanging up; F1 shows the keys.  After a program (`mode = exec`,
+`passwd`, `callers`) that comes back to the menu, "Press any key for the
+menu" keeps what it wrote on the screen until the caller has read it.
+
+The login stays lines, as before: PPP dialers (AutoPPP) and AOL
+clients read and answer it, and a terminal's answers are not known
+until then.  Others (VT52, a Commodore, a terminal that answers
+nothing) get the menu of lines.
+
+```ini
+[menu]
+fullscreen = auto   ; no: lines for every caller
+
+[terminal]
+charset = auto      ; utf8, cp437, dec or ascii
+
+[item bbs]
+help = Messages, files and doors on the board
+```
+
+For its lines, modemmenu asks an ANSI terminal whether it shows UTF-8
+(an `é` written and the cursor's place asked); SyncTERM is code page
+437.  Without UTF-8 a VT or xterm gets its line-drawing set, others code
+page 437.  Only the cells that change are sent, and below 9600 bit/s the
+desk is plain blue (cleared in a few bytes) instead of shaded: the
+first screen is about 1 KB at 2400 bit/s, moving the bar a few hundred
+bytes.
 
 ## Who sees what
 

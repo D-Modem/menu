@@ -365,3 +365,30 @@ func (p *Prober) Identify(timeout time.Duration) (VTInfo, error) {
 	p.keep(got)
 	return in, nil
 }
+
+// UTF8: whether the terminal shows UTF-8: é written as its two bytes,
+// and where the cursor went (one cell on, or two for a terminal of 8-bit
+// characters), wiped after.  ok is false when it did not answer.
+func (p *Prober) UTF8(timeout time.Duration) (utf8, ok bool, err error) {
+	if err := p.T.WriteRaw("\r\xc3\xa9\x1b[6n"); err != nil {
+		return false, false, err
+	}
+	got, err := p.collect(timeout, 64, cprPattern.Match)
+	if err != nil {
+		return false, false, err
+	}
+	m := cprPattern.FindSubmatch(got)
+	p.keep(got)
+	if err := p.T.WriteRaw("\r   \r"); err != nil {
+		return false, false, err
+	}
+	if m == nil {
+		return false, false, nil
+	}
+	col, _ := strconv.Atoi(string(m[2]))
+	return col == 2, true, nil
+}
+
+// CTerm: whether it said it is SyncTERM (whose characters are code page
+// 437's)
+func (in VTInfo) CTerm() bool { return in.cterm != "" }

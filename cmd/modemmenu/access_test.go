@@ -203,7 +203,7 @@ func TestUsage(t *testing.T) {
 func callAs(t *testing.T, bin, conf string, env ...string) (*caller, *exec.Cmd) {
 	m, s := testPty(t)
 	t.Cleanup(func() { m.Close() })
-	cmd := exec.Command(bin, "-config", conf)
+	cmd := exec.Command(bin, "-config", lineMenu(conf))
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s, s, s
 	cmd.Env = append(os.Environ(), env...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
