@@ -190,7 +190,7 @@ command = env > %s; cat "$MODEM_SESSION_FILE" >> %s; echo args: {user} {baud} {d
 	cmd := exec.Command(bin, "-config", lineMenu(conf))
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s, s, s
 	cmd.Env = append(os.Environ(), "DMODEM_RATE=33600/31200", "DMODEM_CALLERID=5559999",
-		"DMODEM_DIALED=5551000", "DMODEM_CHANNEL=Local/s@test", "TMPDIR="+dir)
+		"DMODEM_DIALED=5551000", "DMODEM_CHANNEL=Local/s@test", "DMODEM_PEER=203.0.113.5:5060", "TMPDIR="+dir)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -254,7 +254,7 @@ command = env > %s; cat "$MODEM_SESSION_FILE" >> %s; echo args: {user} {baud} {d
 	env, _ := os.ReadFile(envOut)
 	for _, w := range []string{"MODEM_USER=alice", "MODEM_PASSWORD=secret", "MODEM_BAUD=33600",
 		"MODEM_DIALED=5551000", "MODEM_CALLERID=5559999", "MODEM_SELECTION=info",
-		"MODEM_AUTH=file", "MODEM_CHANNEL=Local/s@test", "MODEM_DATETIME=", `"user": "alice"`,
+		"MODEM_AUTH=file", "MODEM_CHANNEL=Local/s@test", "MODEM_PEER=203.0.113.5:5060", "MODEM_DATETIME=", `"user": "alice"`,
 		`"password": "secret"`, `"dialed": "5551000"`} {
 		if !bytes.Contains(env, []byte(w)) {
 			t.Errorf("no %s in the environment and session file:\n%s", w, env)

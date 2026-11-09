@@ -25,7 +25,8 @@ exten => 5551000,1,DModem(menu)
 
 modemmenu reads the call's details from app_dmodem's environment:
 `DMODEM_RATE` (tx/rx bit/s), `DMODEM_CALLERID`, `DMODEM_DIALED`,
-`DMODEM_CHANNEL` and `DMODEM_PROFILE`.  `DMODEM_DIALED` needs an
+`DMODEM_CHANNEL`, `DMODEM_PROFILE` and `DMODEM_PEER` (the address the
+call came from by SIP).  `DMODEM_DIALED` needs an
 app_dmodem that sets it.  The `-rate`, `-callerid` and `-dialed` options
 set these instead, e.g. under a getty on another modem.
 
@@ -53,8 +54,9 @@ socket_group = asterisk
 
 A socket has no environment, so app_dmodem's `header = yes` sends the
 call's details first: `DMODEM_CHANNEL`, `DMODEM_PROFILE`, `DMODEM_RATE`,
-`DMODEM_CALLERID`, `DMODEM_DIALED` and `DMODEM_CONNECTED` (Unix time),
-one `NAME=value` per line, then an empty line, then the caller's bytes.
+`DMODEM_CALLERID`, `DMODEM_DIALED`, `DMODEM_CONNECTED` (Unix time) and
+`DMODEM_PEER`, one `NAME=value` per line, then an empty line, then the
+caller's bytes.
 `[server] header = yes` (the default) reads it; with `header = no` the
 caller's bytes come from the start and the details are unknown.
 

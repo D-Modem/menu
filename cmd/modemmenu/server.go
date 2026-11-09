@@ -99,6 +99,7 @@ func headerEnv(h map[string]string, trust bool) []string {
 		"DMODEM_CHANNEL": "MODEM_CHANNEL", "DMODEM_PROFILE": "MODEM_PROFILE",
 		"DMODEM_RATE": "MODEM_RATE", "DMODEM_CALLERID": "MODEM_CALLERID",
 		"DMODEM_DIALED": "MODEM_DIALED", "DMODEM_CONNECTED": "MODEM_EPOCH",
+		"DMODEM_PEER": "MODEM_PEER",
 	}
 	var env []string
 	for d, m := range call {

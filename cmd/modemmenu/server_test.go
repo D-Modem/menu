@@ -21,7 +21,7 @@ import (
 func TestHeader(t *testing.T) {
 	a, b := net.Pipe()
 	s := newSession("33600/31200", "555\n1000", "", time.Unix(1791666309, 0))
-	s.User, s.Password = "alice", "secret"
+	s.User, s.Password, s.Peer = "alice", "secret", "203.0.113.5:5060"
 	go func() {
 		writeHeader(a, s, false)
 		a.Write([]byte("data"))
@@ -30,7 +30,8 @@ func TestHeader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h["MODEM_USER"] != "alice" || h["MODEM_DIALED"] != "555 1000" || h["MODEM_PASSWORD"] != "" {
+	if h["MODEM_USER"] != "alice" || h["MODEM_DIALED"] != "555 1000" || h["MODEM_PASSWORD"] != "" ||
+		h["MODEM_PEER"] != "203.0.113.5:5060" {
 		t.Errorf("header %v", h)
 	}
 	rest := make([]byte, 4)
@@ -40,7 +41,7 @@ func TestHeader(t *testing.T) {
 	}
 	env := strings.Join(headerEnv(h, false), "\n")
 	if !strings.Contains(env, "DMODEM_RATE=33600/31200") || !strings.Contains(env, "DMODEM_CONNECTED=1791666309") ||
-		strings.Contains(env, "UPSTREAM") {
+		!strings.Contains(env, "DMODEM_PEER=203.0.113.5:5060") || strings.Contains(env, "UPSTREAM") {
 		t.Errorf("env %s", env)
 	}
 	if env := strings.Join(headerEnv(h, true), "\n"); !strings.Contains(env, "MODEMMENU_UPSTREAM_USER=alice") {

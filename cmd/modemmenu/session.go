@@ -16,16 +16,19 @@ import (
 // session is what is known of the call and the caller, handed to the
 // selection in its environment, its command line and its session file
 type session struct {
-	User      string    `json:"user"`
-	Password  string    `json:"password,omitempty"`
-	Auth      string    `json:"auth"`
-	Dialed    string    `json:"dialed"`
-	CallerID  string    `json:"callerid"`
-	Baud      string    `json:"baud"`
-	Rate      string    `json:"rate"`
-	TxRate    string    `json:"tx_rate"`
-	RxRate    string    `json:"rx_rate"`
-	Channel   string    `json:"channel"`
+	User     string `json:"user"`
+	Password string `json:"password,omitempty"`
+	Auth     string `json:"auth"`
+	Dialed   string `json:"dialed"`
+	CallerID string `json:"callerid"`
+	Baud     string `json:"baud"`
+	Rate     string `json:"rate"`
+	TxRate   string `json:"tx_rate"`
+	RxRate   string `json:"rx_rate"`
+	Channel  string `json:"channel"`
+	// the address the call came from by VoIP (the SIP peer's: app_dmodem's
+	// DMODEM_PEER), "" if not told
+	Peer      string    `json:"peer"`
 	Profile   string    `json:"profile"`
 	Connected time.Time `json:"connected"`
 	Selection string    `json:"selection"`
@@ -51,13 +54,15 @@ type session struct {
 }
 
 // newSession from app_dmodem's environment (DMODEM_RATE "tx/rx",
-// DMODEM_CALLERID, DMODEM_DIALED, DMODEM_CHANNEL, DMODEM_PROFILE), what the
+// DMODEM_CALLERID, DMODEM_DIALED, DMODEM_CHANNEL, DMODEM_PROFILE,
+// DMODEM_PEER), what the
 // command line overrides of it
 func newSession(rate, dialed, callerID string, now time.Time) *session {
 	s := &session{
 		Dialed:    dialed,
 		CallerID:  callerID,
 		Channel:   os.Getenv("DMODEM_CHANNEL"),
+		Peer:      os.Getenv("DMODEM_PEER"),
 		Profile:   os.Getenv("DMODEM_PROFILE"),
 		Connected: now,
 	}
@@ -111,6 +116,7 @@ func (s *session) vars(withPassword bool) map[string]string {
 		"rx_rate":      s.RxRate,
 		"speed":        s.Speed(),
 		"channel":      s.Channel,
+		"peer":         s.Peer,
 		"profile":      s.Profile,
 		"selection":    s.Selection,
 		"time_left":    s.TimeLeft,
