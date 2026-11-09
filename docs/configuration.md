@@ -416,6 +416,7 @@ cooked terminal (`tty = sane`), and return to the menu.
 | `{date}`, `{time}` | `MODEM_DATE`, `MODEM_TIME` | the connection's date and time |
 | `{datetime}`, `{epoch}` | `MODEM_DATETIME`, `MODEM_EPOCH` | the same, RFC 3339 and Unix time |
 | `{channel}`, `{profile}` | `MODEM_CHANNEL`, `MODEM_PROFILE` | app_dmodem's channel and profile |
+| `{peer}` | `MODEM_PEER` | the address the call came from by SIP (app_dmodem's `DMODEM_PEER`), empty if not known; the BBS places a caller without a caller ID by it |
 | `{selection}` | `MODEM_SELECTION` | the item chosen |
 | `{time_left}` | `MODEM_TIME_LEFT` | whole minutes left, empty without a limit |
 | `{seconds_left}` | `MODEM_SECONDS_LEFT` | the same in seconds |

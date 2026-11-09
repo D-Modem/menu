@@ -40,6 +40,8 @@
 ;   {epoch}      MODEM_EPOCH       seconds since 1970
 ;   {channel}    MODEM_CHANNEL     the Asterisk channel
 ;   {profile}    MODEM_PROFILE     the dmodem.conf profile
+;   {peer}       MODEM_PEER        the address the call came from by SIP
+;                                  (app_dmodem's DMODEM_PEER; "" unknown)
 ;   {selection}  MODEM_SELECTION   the [item ...] chosen
 ;
 ; The rate, dialed number and caller ID come from app_dmodem's DMODEM_RATE,
