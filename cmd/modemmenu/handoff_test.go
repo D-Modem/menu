@@ -342,7 +342,13 @@ command = echo "pppd up"; exec sleep 1000
 	if d := time.Since(start); d > 20*time.Second {
 		t.Errorf("hung up %v after PPP started", d)
 	}
-	log, _ := os.ReadFile(filepath.Join(dir, "server.log"))
+	// the server logs the session's end just after the line closes
+	var log []byte
+	for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(50 * time.Millisecond) {
+		if log, _ = os.ReadFile(filepath.Join(dir, "server.log")); strings.Contains(string(log), "ended") {
+			break
+		}
+	}
 	if !strings.Contains(string(log), "on the line handed over") || !strings.Contains(string(log), "ended") {
 		t.Errorf("log:\n%s", log)
 	}

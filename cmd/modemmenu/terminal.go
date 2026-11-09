@@ -12,6 +12,7 @@ import (
 
 	"github.com/D-Modem/menu/internal/config"
 	"github.com/D-Modem/menu/internal/term"
+	"github.com/D-Modem/menu/internal/tui"
 	"golang.org/x/sys/unix"
 )
 
@@ -20,6 +21,7 @@ type terminalSettings struct {
 	detect  bool   // ask: ANSI, VT52, an ANSI terminal's identity
 	petscii string // auto (a terminal that is not ANSI may be one), yes (every caller), no
 	timeout time.Duration
+	charset string // the full screen's lines: auto, utf8, cp437, dec, ascii
 }
 
 // loadTerminal: [terminal], checked
@@ -27,6 +29,10 @@ func loadTerminal(sec *config.Section) (terminalSettings, error) {
 	var err error
 	ts := terminalSettings{
 		petscii: strings.ToLower(sec.Get("petscii", "auto")),
+		charset: strings.ToLower(sec.Get("charset", "auto")),
+	}
+	if _, ok := tui.ParseCharset(ts.charset); !ok && ts.charset != "auto" {
+		return ts, fmt.Errorf("[terminal] charset: %q (auto, utf8, cp437, dec or ascii)", ts.charset)
 	}
 	if ts.detect, err = sec.Bool("detect", true); err != nil {
 		return ts, err
@@ -102,8 +108,25 @@ func detectTerminal(t *term.Term, s *settings, sess *session) error {
 		sess.TermName = n
 	}
 	sess.Term = in.Term()
+	sess.hardware = in.Hardware()
 	if in.Level() > 0 || in.Emulator() {
 		sess.Terminal = "vt"
+	}
+	// what its characters are, for the full screen's lines
+	switch {
+	case ts.charset != "auto" || !s.fullscreen:
+	case in.CTerm():
+		sess.charset = "cp437"
+	default:
+		utf8, ok, err := p.UTF8(ts.timeout)
+		if err != nil {
+			return err
+		}
+		if ok && utf8 {
+			sess.charset = "utf8"
+		} else if ok {
+			sess.charset = "8bit"
+		}
 	}
 	return nil
 }

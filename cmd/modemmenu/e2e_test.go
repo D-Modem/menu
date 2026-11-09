@@ -187,7 +187,7 @@ command = env > %s; cat "$MODEM_SESSION_FILE" >> %s; echo args: {user} {baud} {d
 
 	m, s := testPty(t)
 	defer m.Close()
-	cmd := exec.Command(bin, "-config", conf)
+	cmd := exec.Command(bin, "-config", lineMenu(conf))
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s, s, s
 	cmd.Env = append(os.Environ(), "DMODEM_RATE=33600/31200", "DMODEM_CALLERID=5559999",
 		"DMODEM_DIALED=5551000", "DMODEM_CHANNEL=Local/s@test", "TMPDIR="+dir)
@@ -287,7 +287,7 @@ func TestHangup(t *testing.T) {
 	os.WriteFile(conf, []byte("[general]\nlog = none\n[file]\npath = "+users+
 		"\n[item ppp]\ncommand = exec true\n"), 0o600)
 	m, s := testPty(t)
-	cmd := exec.Command(bin, "-config", conf)
+	cmd := exec.Command(bin, "-config", lineMenu(conf))
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s, s, s
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
 	if err := cmd.Start(); err != nil {
@@ -306,4 +306,19 @@ func TestHangup(t *testing.T) {
 		cmd.Process.Kill()
 		t.Fatal("modemmenu is still running after the hangup")
 	}
+}
+
+// lineMenu: the configuration at path with the menu of lines (not full
+// screen), for the tests that read it as lines; path
+func lineMenu(path string) string {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		return path
+	}
+	defer f.Close()
+	b, _ := os.ReadFile(path)
+	if !bytes.Contains(b, []byte("fullscreen =")) {
+		f.WriteString("\n[menu]\nfullscreen = no\n")
+	}
+	return path
 }

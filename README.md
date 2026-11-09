@@ -37,6 +37,8 @@ Selection: ppp
 - PPP dialers detected (AutoPPP and PAP), with a pppd plugin
 - The classic AOL client dialing in: AOLnet, SprintNet and Tymnet played, then the line to a BBS's AOL host
 - Menus with access by user and group, guests and self sign-up
+- The menu full screen on ANSI and VT terminals (a 90s blue desk, the bar moved with the cursor keys; only what changed is sent, for slow lines), lines for the others
+- `modemmenu -setup`: the configuration on full screens with pull-down menus and the sample's help, for the sysop at the console or calling in
 - Each item starts with the caller's credentials and the call's details: dialed number, caller ID, connect rate, time
 - Drop files for doors, last callers, and handing a caller to another menu
 - A ready-made FreePBX setup ([freepbx/](freepbx/README.md))
@@ -49,6 +51,7 @@ Go 1.22 or later:
 make                                                    # with PAM when libpam's headers are there
 make install                                            # /usr/local/bin/modemmenu and the samples
 modemmenu -config /etc/asterisk/modemmenu.conf -check   # check the configuration
+modemmenu -config /etc/asterisk/modemmenu.conf -setup   # or change it on a full screen
 ```
 
 then point an `app_dmodem` profile at it ([docs/running.md](docs/running.md)).

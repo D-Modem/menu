@@ -29,7 +29,7 @@ func startServe(t *testing.T, dir, conf, sock string) {
 	if _, _, err := openPty(); err != nil {
 		t.Skip("no pty:", err)
 	}
-	srv := exec.Command(bin, "-config", conf, "-serve")
+	srv := exec.Command(bin, "-config", lineMenu(conf), "-serve")
 	out, err := os.Create(filepath.Join(dir, "serve.out"))
 	if err != nil {
 		t.Fatal(err)

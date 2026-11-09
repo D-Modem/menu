@@ -53,6 +53,8 @@ log = syslog
 ; backend that does not know the user passes to the next; a wrong password
 ; stops there
 auth = file
+; what the caller sees first (or a file of it, which may have ANSI's
+; colors), then the prompts of the login
 banner = "\r\nWelcome to D-Modem.\r\n"
 ;banner_file = /etc/asterisk/modemmenu.banner
 login_prompt = "\r\nlogin: "
@@ -61,11 +63,14 @@ password_prompt = "Password: "
 ; "33600 bit/s", or "50666 bit/s down, 31200 bit/s up"); left out when it
 ; is not known; "" for none
 connect_message = "\r\nConnected at {speed}.\r\n"
+; after a login, before the motd ({placeholders}; on the full-screen menu,
+; at the top of its window)
 welcome = "\r\nHello {user}, on {date} at {time}.\r\n"
 ; the message of the day, after the welcome and before the menu: motd,
 ; then the file (read at each login), {placeholders} in both
 ;motd = "\r\nThe line is down for maintenance on Sunday.\r\n"
 ;motd_file = /etc/motd
+; at the end of the call, before the line is hung up
 goodbye = "\r\nGoodbye.\r\n"
 ; the echo of each password character, or none
 password_echo = *
@@ -85,6 +90,7 @@ user_pattern = ^[A-Za-z0-9][A-Za-z0-9._@-]{0,63}$
 ; {time_left} (whole minutes) shows what is left, e.g. in [menu] prompt
 time_limit = 0
 daily_limit = 0
+; where the usage, the last callers and the nodes are kept
 state_dir = /var/lib/modemmenu
 ; these long before the limit, the message is written on the line in the
 ; middle of a running selection (not one with time_warning = no), once
@@ -103,6 +109,10 @@ detect = yes
 petscii = auto
 ; for each question a terminal may not answer
 timeout = 2s
+; the full-screen menu's lines and shading: auto (UTF-8 when the terminal
+; shows it, code page 437 for SyncTERM and other BBS terminals, a VT's
+; line-drawing set for a DEC terminal), utf8, cp437, dec or ascii
+charset = auto
 
 ; groups of users for the items' groups = (members of system groups count
 ; too, for logins by auth = system)
@@ -344,18 +354,29 @@ items = bbs ppp shell passwd
 hangup = G goodbye bye logoff
 ; yes: one key selects at once, without Enter (one-character keys only)
 hotkeys = no
+; auto: the menu full screen for a caller whose terminal can have it (ANSI,
+; or a VT that said what it is, 40x14 at least): the items in a window on a
+; blue desk, chosen with the cursor keys or an item's key, the welcome at
+; its top and the motd in a box; others get the menu of lines.  no: lines
+; for every caller.  The login is always lines (dialers and AOL clients
+; read and answer it)
+fullscreen = auto
 
 ; An item:
 ;   key = B              its key in the menu, one or more characters
 ;                        (default: its name's first letter)
 ;   aliases = ...        more words that select it (its name always does)
 ;   label = ...          its line in the menu
+;   help = ...           a line of what it is, under the full-screen menu
 ;   mode = exec          a program on the line: command (by /bin/sh -c)
 ;          passwd        built in: the caller changes their password
 ;                        (min_password = 8 characters)
 ;          callers       built in: the last callers (count = 10), the time,
 ;                        user and rate of each login (state_dir/callers,
 ;                        the latest 200; kept only with such an item)
+;          setup         built in: the sysop's setup, modemmenu.conf on
+;                        full screens (as modemmenu -setup); needs users
+;                        or groups
 ;          tcp           a TCP server, raw: host, port; send is sent first
 ;          unix          a server on a unix socket, raw: path; send too
 ;                        (tcp, telnet and rlogin take a path as well, for
@@ -414,6 +435,7 @@ hotkeys = no
 [item bbs]
 key = B
 label = Bulletin board
+help = Messages, files and doors on the board
 mode = rlogin
 host = 127.0.0.1
 port = 513
@@ -501,6 +523,13 @@ after = menu
 ;label = Last callers
 ;mode = callers
 ;count = 10
+
+; the sysop's setup, on the line: the configuration on full screens
+;[item setup]
+;key = Z
+;label = Setup
+;mode = setup
+;groups = sysops
 
 ; files by ZMODEM (lrzsz): rz receives what the caller's terminal sends,
 ; binary, restricted to the directory, renaming rather than overwriting

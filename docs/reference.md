@@ -38,15 +38,15 @@ The login: the log, the backends, what the caller sees, the time limits.
 |---|---|---|
 | `log` | `syslog` | syslog (auth facility), a file, or none. Never the line: stderr is the caller's screen. |
 | `auth` | `file` | the backends, asked in this order: file, ldap, sql, system (PAM). A backend that does not know the user passes to the next; a wrong password stops there. |
-| `banner` | `\r\nWelcome to D-Modem.\r\n` | the backends, asked in this order: file, ldap, sql, system (PAM). A backend that does not know the user passes to the next; a wrong password stops there. |
-| `banner_file` | `/etc/asterisk/modemmenu.banner` | the backends, asked in this order: file, ldap, sql, system (PAM). A backend that does not know the user passes to the next; a wrong password stops there. |
-| `login_prompt` | `\r\nlogin: ` | the backends, asked in this order: file, ldap, sql, system (PAM). A backend that does not know the user passes to the next; a wrong password stops there. |
-| `password_prompt` | `Password: ` | the backends, asked in this order: file, ldap, sql, system (PAM). A backend that does not know the user passes to the next; a wrong password stops there. |
+| `banner` | `\r\nWelcome to D-Modem.\r\n` | what the caller sees first (or a file of it, which may have ANSI's colors), then the prompts of the login. |
+| `banner_file` | `/etc/asterisk/modemmenu.banner` | what the caller sees first (or a file of it, which may have ANSI's colors), then the prompts of the login. |
+| `login_prompt` | `\r\nlogin: ` | what the caller sees first (or a file of it, which may have ANSI's colors), then the prompts of the login. |
+| `password_prompt` | `Password: ` | what the caller sees first (or a file of it, which may have ANSI's colors), then the prompts of the login. |
 | `connect_message` | `\r\nConnected at {speed}.\r\n` | after the banner, before the login prompt: the connect rate ({speed}: "33600 bit/s", or "50666 bit/s down, 31200 bit/s up"); left out when it is not known; "" for none. |
-| `welcome` | `\r\nHello {user}, on {date} at {time}.\r\n` | after the banner, before the login prompt: the connect rate ({speed}: "33600 bit/s", or "50666 bit/s down, 31200 bit/s up"); left out when it is not known; "" for none. |
+| `welcome` | `\r\nHello {user}, on {date} at {time}.\r\n` | after a login, before the motd ({placeholders}; on the full-screen menu, at the top of its window) |
 | `motd` | `\r\nThe line is down for maintenance on Sunday.\r\n` | the message of the day, after the welcome and before the menu: motd, then the file (read at each login), {placeholders} in both. |
 | `motd_file` | `/etc/motd` | the message of the day, after the welcome and before the menu: motd, then the file (read at each login), {placeholders} in both. |
-| `goodbye` | `\r\nGoodbye.\r\n` | the message of the day, after the welcome and before the menu: motd, then the file (read at each login), {placeholders} in both. |
+| `goodbye` | `\r\nGoodbye.\r\n` | at the end of the call, before the line is hung up. |
 | `password_echo` | `*` | the echo of each password character, or none. |
 | `attempts` | `3` | logins before the call is hung up, seconds after a wrong one. |
 | `fail_delay` | `3` | logins before the call is hung up, seconds after a wrong one. |
@@ -56,7 +56,7 @@ The login: the log, the backends, what the caller sees, the time limits.
 | `max_input` | `64` | the longest line the caller may type at a prompt: a user name or a menu choice (a password twice as long) |
 | `time_limit` | `0` | time limits (0: none), from the login: a call, and a user's calls in a day (kept in state_dir/usage). A selection is hung up at the limit. {time_left} (whole minutes) shows what is left, e.g. in [menu] prompt. |
 | `daily_limit` | `0` | time limits (0: none), from the login: a call, and a user's calls in a day (kept in state_dir/usage). A selection is hung up at the limit. {time_left} (whole minutes) shows what is left, e.g. in [menu] prompt. |
-| `state_dir` | `/var/lib/modemmenu` | time limits (0: none), from the login: a call, and a user's calls in a day (kept in state_dir/usage). A selection is hung up at the limit. {time_left} (whole minutes) shows what is left, e.g. in [menu] prompt. |
+| `state_dir` | `/var/lib/modemmenu` | where the usage, the last callers and the nodes are kept. |
 | `time_warning` | `5m 1m` | these long before the limit, the message is written on the line in the middle of a running selection (not one with time_warning = no), once for each: 5m 1m warns at 5 minutes and at 1 minute left; 0: none. {time_left} is in minutes, {seconds_left} in seconds; \a beeps. |
 | `time_warning_message` | `\r\n\r\n*** {time_left} minute(s) left in this call ***\r\n` | these long before the limit, the message is written on the line in the middle of a running selection (not one with time_warning = no), once for each: 5m 1m warns at 5 minutes and at 1 minute left; 0: none. {time_left} is in minutes, {seconds_left} in seconds; \a beeps. |
 
@@ -69,6 +69,7 @@ the caller's terminal, asked before the banner: ANSI (and its size), VT52, what 
 | `detect` | `yes` | See the section above. |
 | `petscii` | `auto` | auto: watch the login for a Commodore's keys; yes: every caller is one. |
 | `timeout` | `2s` | for each question a terminal may not answer. |
+| `charset` | `auto` | the full-screen menu's lines and shading: auto (UTF-8 when the terminal shows it, code page 437 for SyncTERM and other BBS terminals, a VT's line-drawing set for a DEC terminal), utf8, cp437, dec or ascii. |
 
 ## `[groups]`
 
@@ -263,6 +264,7 @@ The menu: its title, prompt, items and the words that hang up.
 | `items` | `bbs ppp shell passwd` | the items in order (default: every [item ...] in file order) |
 | `hangup` | `G goodbye bye logoff` | the caller types a choice and Enter: an item's key, its name or one of its aliases, in any case (P, p, ppp). ? shows the menu again. What hangs up (the first one is shown in the menu): |
 | `hotkeys` | `no` | yes: one key selects at once, without Enter (one-character keys only) |
+| `fullscreen` | `auto` | auto: the menu full screen for a caller whose terminal can have it (ANSI, or a VT that said what it is, 40x14 at least): the items in a window on a blue desk, chosen with the cursor keys or an item's key, the welcome at its top and the motd in a box; others get the menu of lines. no: lines for every caller. The login is always lines (dialers and AOL clients read and answer it) |
 
 ## `[item NAME]`
 
@@ -272,10 +274,11 @@ There may be any number of these, each with its own NAME.
 
 | key | sample | what it does |
 |---|---|---|
-| `key` | `B` | its key in the menu, one or more characters (default: its name's first letter) Also: `P`, `PW`, `S`, `M`, `L`, `LC`, `U`, `K`, `W`, `N`, `C`, `GO`. |
+| `key` | `B` | its key in the menu, one or more characters (default: its name's first letter) Also: `P`, `PW`, `S`, `M`, `L`, `LC`, `Z`, `U`, `K`, `W`, `N`, `C`, `GO`. |
 | `aliases` | `...` | more words that select it (its name always does) Also: `dialup net`. |
-| `label` | `...` | its line in the menu. Also: `Bulletin board`, `PPP (dial-up networking)`, `Change your password`, `Shell`, `More services`, `The BBS`, `Legend of the Red Dragon`, `Last callers`, `Upload a file (ZMODEM)`, `Kermit file server`, `The web (lynx)`, `Mail`, `Usenet news`, `Chat (IRC)`, `Gopherspace`. |
-| `mode` | `exec` | a program on the line: command (by /bin/sh -c); `passwd`: built in: the caller changes their password (min_password = 8 characters); `callers`: built in: the last callers (count = 10), the time, user and rate of each login (state_dir/callers, the latest 200; kept only with such an item); `tcp`: a TCP server, raw: host, port; send is sent first; `unix`: a server on a unix socket, raw: path; send too (tcp, telnet and rlogin take a path as well, for their protocol on a unix socket); `telnet`: a telnet server: host, port (23), terminal (ANSI); `rlogin`: an rlogin server: host, port (513), and rlogin_client_user ({password}), rlogin_server_user ({user}), rlogin_terminal (ansi/{baud}) Also: `rlogin`, `tcp`, `passwd`, `unix`, `callers`. |
+| `label` | `...` | its line in the menu. Also: `Bulletin board`, `PPP (dial-up networking)`, `Change your password`, `Shell`, `More services`, `The BBS`, `Legend of the Red Dragon`, `Last callers`, `Setup`, `Upload a file (ZMODEM)`, `Kermit file server`, `The web (lynx)`, `Mail`, `Usenet news`, `Chat (IRC)`, `Gopherspace`. |
+| `help` | `...` | a line of what it is, under the full-screen menu. Also: `Messages, files and doors on the board`. |
+| `mode` | `exec` | a program on the line: command (by /bin/sh -c); `passwd`: built in: the caller changes their password (min_password = 8 characters); `callers`: built in: the last callers (count = 10), the time, user and rate of each login (state_dir/callers, the latest 200; kept only with such an item); `setup`: built in: the sysop's setup, modemmenu.conf on full screens (as modemmenu -setup); needs users or groups; `tcp`: a TCP server, raw: host, port; send is sent first; `unix`: a server on a unix socket, raw: path; send too (tcp, telnet and rlogin take a path as well, for their protocol on a unix socket); `telnet`: a telnet server: host, port (23), terminal (ANSI); `rlogin`: an rlogin server: host, port (513), and rlogin_client_user ({password}), rlogin_server_user ({user}), rlogin_terminal (ansi/{baud}) Also: `rlogin`, `tcp`, `passwd`, `unix`, `callers`, `setup`. |
 | `run_as` | `{user}` | exec as this system user (modemmenu must be root) |
 | `tty` | `raw` | the line as app_dmodem has it; sane: cooked, echo, CR to LF, for programs that want a terminal. Also: `sane`. |
 | `pass_password` | `yes` | the password in {password} and MODEM_PASSWORD. Also: `no`. |

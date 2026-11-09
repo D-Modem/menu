@@ -224,7 +224,7 @@ func TestDetectPETSCII(t *testing.T) {
 
 // startOn: modemmenu on the slave of a pty
 func startOn(t *testing.T, bin, conf string, s *os.File, env ...string) *exec.Cmd {
-	cmd := exec.Command(bin, "-config", conf)
+	cmd := exec.Command(bin, "-config", lineMenu(conf))
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s, s, s
 	cmd.Env = append(os.Environ(), env...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}

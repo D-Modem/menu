@@ -2,8 +2,9 @@
 
 - [Building](building.md): Go, PAM, `make install`
 - [Running it from app_dmodem](running.md): a program per call, one server on a unix socket, FreePBX
-- [Configuration](configuration.md): `modemmenu.conf`, the connect rate, terminals, the message of the day, the menu and its items, guests and sign-up, caller ID, time limits, drop files, last callers, handing callers on
+- [Configuration](configuration.md): `modemmenu.conf`, the connect rate, terminals, the message of the day, the menu (full screen or lines) and its items, guests and sign-up, caller ID, time limits, drop files, last callers, handing callers on
 - [Configuration reference](reference.md): every section and key, from the sample
+- [The sysop's setup](setup.md): `modemmenu -setup`, the configuration on a full screen, and on the line for sysops
 - [Authentication](authentication.md): users file, LDAP, SQL, system accounts (PAM), changing passwords, the auth socket
 - [PPP dialers](ppp.md): AutoPPP and PAP, the pppd plugin
 - [AOL callers](aol.md): the classic AOL client dialing in, its network played

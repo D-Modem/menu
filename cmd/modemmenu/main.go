@@ -51,10 +51,19 @@ func main() {
 	listenAt := flag.String("listen", "", "with -serve: listen on this unix socket `path` (or tcp:host:port) instead of [server] listen")
 	upstreamFlag := flag.Bool("upstream", false, "a session of -serve with trust_user (internal)")
 	authdFlag := flag.Bool("authd", false, "answer the [authd] auth socket alone (with -serve it is answered too)")
+	setupFlag := flag.Bool("setup", false, "change the configuration on a full screen (the sysop's setup)")
 	flag.Parse()
 
 	if *hash {
 		os.Exit(printHash())
+	}
+	if *setupFlag {
+		// before the file is loaded: the setup is how one that does not
+		// load is put right
+		if s, err := loadSettings(*config); err == nil {
+			openLog(s.log)
+		}
+		os.Exit(runSetupLocal(*config))
 	}
 	s, err := loadSettings(*config)
 	if err != nil {
@@ -248,8 +257,21 @@ func run(t *term.Term, s *settings, sess *session) int {
 	}
 	lim.mark(sess, time.Now())
 
-	t.Write(config.Expand(s.welcome, sess.vars(false), nil))
-	t.Write(motd(s, sess))
+	desk := deskFor(t, s, sess)
+	m := motd(s, sess)
+	if desk == nil || strings.Contains(m, "\x1b") {
+		// the full screen has the welcome in its window, and a motd of
+		// plain text in a box; one with ANSI's colors is shown as it is
+		t.Write(config.Expand(s.welcome, sess.vars(false), nil))
+		t.Write(m)
+		if desk != nil && m != "" {
+			if err := pause(t, desk, s, "Press any key to continue"); err != nil {
+				logf("logout user=%s: %v", sess.User, describe(err))
+				return 0
+			}
+		}
+		m = ""
+	}
 	var first *menuItem
 	if rule != nil && rule.item != "" {
 		first = s.selects(strings.ToUpper(rule.item))
@@ -257,7 +279,11 @@ func run(t *term.Term, s *settings, sess *session) int {
 			first = nil
 		}
 	}
-	err = menu(t, s, sess, lim, first)
+	if desk != nil {
+		err = fullMenu(t, s, sess, lim, first, desk, m)
+	} else {
+		err = menu(t, s, sess, lim, first)
+	}
 	switch {
 	case err == nil:
 		t.Write(config.Expand(s.goodbye, sess.vars(false), nil))

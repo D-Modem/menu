@@ -16,6 +16,7 @@ nav:
   - Building: building.md
   - Configuration: configuration.md
   - Configuration reference: reference.md
+  - Setup screens: setup.md
   - Authentication: authentication.md
   - PPP: ppp.md
   - Dial-up network: dialup-network.md

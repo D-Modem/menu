@@ -48,6 +48,8 @@ func launch(t *term.Term, cfg *settings, it *menuItem, s *session, deadline time
 		return changePasswordItem(t, cfg, it, s, deadline)
 	case "callers":
 		return callersItem(t, cfg, it)
+	case "setup":
+		return setupItem(t, cfg, it, s, deadline)
 	case "exec":
 		return runExec(t, cfg, it, s, deadline, logf)
 	default:
