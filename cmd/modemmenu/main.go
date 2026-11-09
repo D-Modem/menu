@@ -220,6 +220,10 @@ func run(t *term.Term, s *settings, sess *session) int {
 		if errors.Is(err, errAutoPPP) {
 			return autoPPP(t, s, sess)
 		}
+		var aol errAOL
+		if errors.As(err, &aol) {
+			return aolCall(t, s, sess, aol.network)
+		}
 		if err != nil {
 			if !errors.Is(err, term.ErrHangup) {
 				t.Write("\r\n")
@@ -280,6 +284,12 @@ func login(t *term.Term, s *settings, sess *session) error {
 	deadline := time.Now().Add(s.loginTimeout)
 	// a terminal not known by the end is not a Commodore
 	defer func() { t.WatchPETSCII = false }()
+	if s.aol.enabled && s.aol.networks[netAOLnet] && s.aol.prompt != "" {
+		// AOLnet's greeting, which an AOL client's script waits for
+		if err := t.Write(s.aol.prompt + "\r\n"); err != nil {
+			return err
+		}
+	}
 	for try := 1; try <= s.attempts; try++ {
 		if err := t.Write(s.loginPrompt); err != nil {
 			return err
@@ -292,6 +302,16 @@ func login(t *term.Term, s *settings, sess *session) error {
 			}
 			if ppp {
 				return errAutoPPP
+			}
+		}
+		if s.aol.enabled {
+			// an AOL client's Tymnet script, or its P3
+			network, err := sniffAOL(t, s.aol, deadline)
+			if err != nil {
+				return err
+			}
+			if network != "" {
+				return errAOL{network}
 			}
 		}
 		name, err := t.ReadLine(deadline, s.maxInput, true, "")
@@ -313,6 +333,12 @@ func login(t *term.Term, s *settings, sess *session) error {
 		if name == "" {
 			try--
 			continue
+		}
+		if s.aol.enabled {
+			// an AOL client's AOLnet or SprintNet script
+			if network := aolName(s.aol, name); network != "" {
+				return errAOL{network}
+			}
 		}
 		if s.guest.enabled && strings.EqualFold(name, s.guest.name) {
 			// no password for a guest

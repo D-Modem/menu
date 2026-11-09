@@ -25,6 +25,7 @@ full.
 | [`[authd]`](#authd) | The auth socket: the BBS's other logins (telnet, SSH, the web) ask the backends above for a user's password through it, so that it is the same one. |
 | [`[ppp_pool]`](#ppp_pool) | The PPP callers' addresses: a command that names {ppp_remote} (or {ppp_local}, {ppp_dns}, {ppp_dns2}) takes the first free address of range for the call, so that several lines run PPP at once, and gives it back when pppd ends. |
 | [`[autoppp]`](#autoppp) | AutoPPP: a dialer that starts PPP at once (Windows' Dial-Up Networking, most others) sends a PPP frame where the login prompt wants a name; then command runs on the line instead (pppd), and its modemmenu.so plugin (make builds it with ppp-dev's headers; make install puts it in pppd's plugin directory) asks this call's auth socket for the PAP login: the backends check it as at the prompt, then item's access rules, then the time limits, whose time left becomes pppd's maxconnect. |
+| [`[aol]`](#aol) | AOL: the classic AOL client (2.5 to 4.0) dials a network and its CCL script answers the network's prompts before it speaks P3. |
 | [`[dropfile]`](#dropfile) | drop files for doors (an exec item's dropfile =): what they say of the BBS, and how the door reaches the caller. |
 | [`[menu]`](#menu) | The menu: its title, prompt, items and the words that hang up. |
 | [`[item NAME]`](#item-name) | A menu item: a program on the line, a server to connect the caller to, or a built-in (see the item keys below). |
@@ -220,6 +221,18 @@ AutoPPP: a dialer that starts PPP at once (Windows' Dial-Up Networking, most oth
 | `enabled` | `no` | See the section above. |
 | `command` | `exec /usr/sbin/pppd nodetach lock passive local {ppp_local}:{ppp_remote} ms-dns {ppp_dns} ms-dns {ppp_dns2} require-pap refuse-chap refuse-mschap refuse-mschap-v2 refuse-eap plugin modemmenu.so ipparam autoppp` | See the section above. |
 | `item` | `ppp` | the access rules (groups, min_baud, callerids...) a PPP login must pass. |
+
+## `[aol]`
+
+AOL: the classic AOL client (2.5 to 4.0) dials a network and its CCL script answers the network's prompts before it speaks P3.  modemmenu plays the network (AOLnet, SprintNet, Tymnet, as AOL 3.0's scripts wait for them), then joins the line to host: the BBS's AOL front end, where the caller signs on with their BBS account.  AOLnet needs its greeting (aolnet_prompt) said before the first login prompt, which every caller sees; and the name "aol" (AOLnet's answer) and "@D" (SprintNet's) are then the client's, not a user's.
+
+| key | sample | what it does |
+|---|---|---|
+| `enabled` | `no` | See the section above. |
+| `host` | `localhost:5190` | See the section above. |
+| `networks` | `aolnet sprintnet tymnet p3` | which to play: aolnet sprintnet tymnet, and p3 (a CCL of one's own that starts P3 at once) |
+| `aolnet_prompt` | `UQKT1` | AOLnet's greeting, which its script waits for. |
+| `sprintnet_speed` | `11:14` | the answer to SprintNet's "par? 11", the line's speed: 11:14 is 9600 bps and up (the client then uses its high-speed settings) |
 
 ## `[dropfile]`
 
