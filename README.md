@@ -35,6 +35,7 @@ Selection: ppp
 
 - Logins from a users file, LDAP, SQL (MySQL/MariaDB, PostgreSQL, SQLite) or system accounts through PAM
 - PPP dialers detected (AutoPPP and PAP), with a pppd plugin
+- The classic AOL client dialing in: AOLnet, SprintNet and Tymnet played, then the line to a BBS's AOL host
 - Menus with access by user and group, guests and self sign-up
 - Each item starts with the caller's credentials and the call's details: dialed number, caller ID, connect rate, time
 - Drop files for doors, last callers, and handing a caller to another menu

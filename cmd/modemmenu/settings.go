@@ -92,6 +92,7 @@ type settings struct {
 	dropfile   dropfileSettings
 	autoppp    autopppSettings
 	pppPool    pppPoolSettings
+	aol        aolSettings
 	terminal   terminalSettings
 	authd      *authdSettings // nil: no auth socket
 	menuTitle  string
@@ -187,6 +188,9 @@ func loadSettings(path string) (*settings, error) {
 		return nil, err
 	}
 	if s.pppPool, err = loadPPPPool(c.Section("ppp_pool")); err != nil {
+		return nil, err
+	}
+	if s.aol, err = loadAOL(c.Section("aol")); err != nil {
 		return nil, err
 	}
 	if s.terminal, err = loadTerminal(c.Section("terminal")); err != nil {

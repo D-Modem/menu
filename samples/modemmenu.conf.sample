@@ -284,6 +284,26 @@ command = exec /usr/sbin/pppd nodetach lock passive local {ppp_local}:{ppp_remot
 ; the access rules (groups, min_baud, callerids...) a PPP login must pass
 item = ppp
 
+; AOL: the classic AOL client (2.5 to 4.0) dials a network and its CCL
+; script answers the network's prompts before it speaks P3.  modemmenu
+; plays the network (AOLnet, SprintNet, Tymnet, as AOL 3.0's scripts wait
+; for them), then joins the line to host: the BBS's AOL front end, where
+; the caller signs on with their BBS account.  AOLnet needs its greeting
+; (aolnet_prompt) said before the first login prompt, which every caller
+; sees; and the name "aol" (AOLnet's answer) and "@D" (SprintNet's) are
+; then the client's, not a user's
+[aol]
+enabled = no
+host = localhost:5190
+; which to play: aolnet sprintnet tymnet, and p3 (a CCL of one's own that
+; starts P3 at once)
+networks = aolnet sprintnet tymnet p3
+; AOLnet's greeting, which its script waits for
+aolnet_prompt = UQKT1
+; the answer to SprintNet's "par? 11", the line's speed: 11:14 is 9600 bps
+; and up (the client then uses its high-speed settings)
+sprintnet_speed = 11:14
+
 ; drop files for doors (an exec item's dropfile =): what they say of the
 ; BBS, and how the door reaches the caller.  The defaults are what
 ; Synchronet writes for a door on stdin and stdout
