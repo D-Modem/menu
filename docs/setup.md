@@ -56,8 +56,10 @@ groups = sysops
 
 It must have `users` or `groups` (modemmenu refuses one without), and is
 never a guest's.  It needs an ANSI terminal of 40x14 at least (80x24 is
-better); others are told so.  The idle timeout and the call's time limit
-hold in it; what was not saved when the call ends is lost.  The file is
+better); others are told so.  The idle timeout does not hold in it: the
+setup waits for the sysop however long they take.  The call's time limit
+(`time_limit`) still does, and what was not saved when the call ends is
+lost.  The file is
 written as the user modemmenu runs as, which must be able to write it.
 
 ## Terminals
