@@ -184,14 +184,32 @@ func (d *Desk) next(wait time.Duration) (byte, error) {
 	}
 	if wait < 0 {
 		wait = d.Idle
-		if wait <= 0 {
+		if wait == 0 {
 			wait = 24 * time.Hour
 		}
 	}
-	if wait == 0 {
-		return 0, ErrTimeout
+	forever := wait < 0 // Idle < 0: until a key, a hangup or the Deadline
+	for {
+		w := wait
+		if forever {
+			w = 24 * time.Hour
+		}
+		if !d.Deadline.IsZero() {
+			left := time.Until(d.Deadline)
+			if left <= 0 {
+				return 0, ErrTimeout
+			}
+			w = min(w, left)
+		}
+		if w == 0 {
+			return 0, ErrTimeout
+		}
+		b, err := d.Line.ReadOne(w)
+		if forever && errors.Is(err, ErrTimeout) {
+			continue
+		}
+		return b, err
 	}
-	return d.Line.ReadOne(wait)
 }
 
 func (d *Desk) unread(b byte) { d.pending = append([]byte{b}, d.pending...) }

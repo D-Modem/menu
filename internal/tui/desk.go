@@ -28,8 +28,10 @@ type Desk struct {
 	Shade bool
 	Menus []Menu // the menu bar's pull-downs; none: a bar with Name
 	// how long a key may take where the screens wait without a limit of
-	// their own (0: a day); ErrTimeout after
+	// their own (0: a day, < 0: no limit); ErrTimeout after
 	Idle time.Duration
+	// a time no wait goes past (zero: none); ErrTimeout at it
+	Deadline time.Time
 
 	on      *Screen // what the terminal shows (nil: not known)
 	last    *Screen // what was shown last

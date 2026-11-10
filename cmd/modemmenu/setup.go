@@ -438,7 +438,11 @@ func (u *setupUI) run() error {
 		if err := d.Show(scr); err != nil {
 			return err
 		}
-		k, alt, err := d.Key(-1)
+		wait := time.Duration(-1) // no idle limit: the sysop's setup waits
+		if u.size != nil {
+			wait = time.Minute // the size looked at again
+		}
+		k, alt, err := d.Key(wait)
 		if errors.Is(err, term.ErrTimeout) && u.size != nil {
 			continue // at the console: no one to hang up on
 		}
@@ -913,7 +917,7 @@ func runSetupLocal(path string) int {
 		return 1
 	}
 	u.size = size
-	d.Idle = time.Minute // the size looked at again
+	d.Idle = -1 // the setup never times out
 	u.who = "on the console"
 	if err := u.run(); err != nil {
 		fmt.Fprintln(os.Stderr, "modemmenu:", err)
@@ -968,15 +972,13 @@ func setupItem(t *term.Term, cfg *settings, it *menuItem, s *session, deadline t
 	}
 	u.who = "user=" + s.User
 	logf("setup: %s by user=%s", cfg.path, s.User)
-	if !deadline.IsZero() && time.Until(deadline) < d.Idle {
-		d.Idle = max(time.Until(deadline), time.Second)
-	}
+	// no idle limit for the sysop's setup: only the session's time limit
+	// (time_limit) ends it, or a hangup
+	d.Idle = -1
+	d.Deadline = deadline
 	err = u.run()
 	if errors.Is(err, term.ErrTimeout) {
-		if !deadline.IsZero() && !time.Now().Before(deadline) {
-			return errTimeLimit
-		}
-		return t.Write("\r\nIdle too long: the setup ended (what was not saved is not).\r\n")
+		return errTimeLimit
 	}
 	return err
 }

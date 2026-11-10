@@ -168,3 +168,42 @@ func TestPullDown(t *testing.T) {
 		t.Errorf("menu keys")
 	}
 }
+
+// slowLine: times out a few times before its one key
+type slowLine struct {
+	quiet int
+	waits []time.Duration
+}
+
+func (l *slowLine) ReadOne(d time.Duration) (byte, error) {
+	l.waits = append(l.waits, d)
+	if l.quiet > 0 {
+		l.quiet--
+		return 0, ErrTimeout
+	}
+	return 'x', nil
+}
+
+func (l *slowLine) WriteRaw(string) error { return nil }
+
+// TestNoIdle: Idle < 0 waits through the line's timeouts for a key;
+// a Deadline still ends the wait
+func TestNoIdle(t *testing.T) {
+	l := &slowLine{quiet: 3}
+	d := &Desk{Line: l, Idle: -1}
+	if k, _, err := d.Key(-1); err != nil || k != 'x' {
+		t.Fatalf("Key = %q, %v; want 'x'", k, err)
+	}
+	if len(l.waits) != 4 {
+		t.Fatalf("%d reads, want 4", len(l.waits))
+	}
+	l = &slowLine{quiet: 1 << 30}
+	d = &Desk{Line: l, Idle: -1, Deadline: time.Now().Add(-time.Second)}
+	if _, _, err := d.Key(-1); err != ErrTimeout {
+		t.Fatalf("past the deadline: %v, want ErrTimeout", err)
+	}
+	d = &Desk{Line: &slowLine{quiet: 1}, Idle: time.Minute}
+	if _, _, err := d.Key(-1); err != ErrTimeout {
+		t.Fatalf("Idle a minute: %v, want ErrTimeout", err)
+	}
+}
