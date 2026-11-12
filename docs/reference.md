@@ -121,6 +121,7 @@ There may be any number of these, each with its own NAME.
 |---|---|---|
 | `user` | `alice` | See the section above. |
 | `item` | `ppp` | See the section above. |
+| `deny` | `no` | See the section above. |
 
 ## `[file]`
 
@@ -173,6 +174,7 @@ SQL: query gets args (user, password, in that order of placeholders) and returns
 | `query` | `SELECT password FROM users WHERE username = ? AND enabled = 1` | mysql (or mariadb), postgres, sqlite. Also: `SELECT 1 FROM users WHERE username = $1 AND password = crypt($2, password)`, `SELECT password FROM users WHERE username = ?`. |
 | `args` | `user` | mysql (or mariadb), postgres, sqlite. Also: `user password`. |
 | `hash` | `auto` | mysql (or mariadb), postgres, sqlite. Also: `none`. |
+| `timeout` | `10` | seconds to wait for the database. |
 | `update_query` | `UPDATE users SET password = ? WHERE username = ?` | mode = passwd items: update_query sets the password, with update_args (user, password, old_password, in the order of its placeholders); update_hash = bcrypt stores a bcrypt hash, none the password as typed (for a query that hashes it). Without update_query, SQL passwords cannot be changed from the menu. Also: `UPDATE users SET password = crypt($1, gen_salt('bf')) WHERE username = $2`. |
 | `update_args` | `password user` | mode = passwd items: update_query sets the password, with update_args (user, password, old_password, in the order of its placeholders); update_hash = bcrypt stores a bcrypt hash, none the password as typed (for a query that hashes it). Without update_query, SQL passwords cannot be changed from the menu. |
 | `update_hash` | `bcrypt` | mode = passwd items: update_query sets the password, with update_args (user, password, old_password, in the order of its placeholders); update_hash = bcrypt stores a bcrypt hash, none the password as typed (for a query that hashes it). Without update_query, SQL passwords cannot be changed from the menu. Also: `none`. |

@@ -154,6 +154,7 @@ deny_message = "\r\nThis line does not take your call.\r\n"
 ;[number 5551234]
 ;user = alice
 ;item = ppp
+;deny = no
 
 ; users in a text file: user:hash, # comments.  hash: bcrypt ($2b$...,
 ; modemmenu -hash makes one), {SHA256}hex, {SHA512}hex, {SSHA256}base64,
@@ -212,6 +213,8 @@ dsn = modem:secret@tcp(127.0.0.1:3306)/bbs
 query = SELECT password FROM users WHERE username = ? AND enabled = 1
 args = user
 hash = auto
+; seconds to wait for the database
+;timeout = 10
 ; mode = passwd items: update_query sets the password, with update_args
 ; (user, password, old_password, in the order of its placeholders);
 ; update_hash = bcrypt stores a bcrypt hash, none the password as typed
@@ -508,7 +511,6 @@ after = menu
 ; More items, to copy into items = above.  Each needs its program installed;
 ; run_as = {user} (modemmenu as root) keeps callers in their own accounts.
 
-; who called last
 ; a DOS door under DOSEMU (its command line depends on your DOSEMU's
 ; version and setup: an example to adapt)
 ;[item lord]
@@ -520,6 +522,7 @@ after = menu
 ;command = cd /srv/doors/lord && exec dosemu -dumb -E "lord.bat $MODEM_NODE"
 ;after = menu
 
+; who called last
 ;[item callers]
 ;key = LC
 ;label = Last callers

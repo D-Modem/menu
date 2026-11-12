@@ -151,6 +151,23 @@ func TestDialogs(t *testing.T) {
 	if i, ok, _ := d.Choose(base, "Pick", []string{"a", "b", "c"}, nil, 0); !ok || i != 2 {
 		t.Errorf("choice %d %v", i, ok)
 	}
+	// checkboxes: the first off, the third on; the extra line
+	f.in = []byte(" \x1b[B\x1b[B \r")
+	on, extra, ok, _ := d.ChooseMulti(base, "Some", []string{"a", "b", "c"}, nil, []bool{true, true, false}, "Type…")
+	if !ok || extra || on[0] || !on[1] || !on[2] {
+		t.Errorf("checked %v %v %v", on, extra, ok)
+	}
+	if txt := d.Screen().Text(); !strings.Contains(txt, "[x] c") || !strings.Contains(txt, "[ ] a") {
+		t.Errorf("boxes not drawn:\n%s", txt)
+	}
+	f.in = []byte("\x1b[F\r")
+	if _, extra, ok, _ := d.ChooseMulti(base, "Some", []string{"a"}, nil, nil, "Type…"); !ok || !extra {
+		t.Errorf("extra %v %v", extra, ok)
+	}
+	f.in = []byte(" \x1b")
+	if on, _, ok, _ := d.ChooseMulti(base, "Some", []string{"a"}, nil, []bool{false}, ""); ok || on[0] {
+		t.Errorf("Esc: %v %v", on, ok)
+	}
 }
 
 // TestPullDown: a menu pulled down, moved across, an item picked
