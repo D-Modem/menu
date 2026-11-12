@@ -243,3 +243,58 @@ func itoa(n int) string {
 	}
 	return string(b)
 }
+
+// ChooseMulti is a list over base of choices to check some of: [x] before
+// each checked one, Space checks or unchecks the bar's, Enter is done.
+// extra, when not "", is a last line that ends the list another way (such
+// as "Type the list…"): picked, extraPicked is true.  on is what is
+// checked at first; the result, what is checked at the end.
+func (d *Desk) ChooseMulti(base *Screen, title string, choices, notes []string, on []bool, extra string) (out []bool, extraPicked, ok bool, err error) {
+	out = make([]bool, len(choices))
+	copy(out, on)
+	l := &List{Title: title, Center: true}
+	build := func() {
+		l.Items = l.Items[:0]
+		for i, c := range choices {
+			box := "[ ] "
+			if out[i] {
+				box = "[x] "
+			}
+			e := Entry{Label: box + c}
+			if i < len(notes) && notes[i] != "" {
+				e.Value, e.Unset = notes[i], true
+			}
+			l.Items = append(l.Items, e)
+		}
+		if extra != "" {
+			l.Items = append(l.Items, Entry{Heading: true}, Entry{Label: extra})
+		}
+	}
+	build()
+	l.Fix()
+	for {
+		build()
+		scr := base.Clone()
+		l.Draw(d, scr, true)
+		d.KeyBar(scr, Hints("Space", "Check", "Enter", "Done", "Esc", "Cancel"), "")
+		if err := d.Show(scr); err != nil {
+			return on, false, false, err
+		}
+		k, _, err := d.Key(-1)
+		if err != nil {
+			return on, false, false, err
+		}
+		switch {
+		case k == KeyEnter && l.Cur >= len(choices):
+			return out, true, true, nil
+		case k == KeyEnter:
+			return out, false, true, nil
+		case k == ' ' && l.Cur < len(choices):
+			out[l.Cur] = !out[l.Cur]
+		case k == KeyEsc || k == KeyLeft:
+			return on, false, false, nil
+		default:
+			l.Move(d, k)
+		}
+	}
+}

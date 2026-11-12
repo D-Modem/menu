@@ -16,19 +16,54 @@ modemmenu -setup -config /etc/asterisk/modemmenu.conf
   Dial-up and Server (the same as the bar's menus).  Enter opens one: its
   keys and their values, `(not set)` and the sample's value for those the
   file leaves out.
+- Every section and key has a line under the bar saying what it does,
+  written for the sysop; **F1** adds the sample's own notes and the values
+  it can be picked from.
 - **Enter** changes the value under the bar: typed in a box (cursor keys,
-  Home, End, Del, ^U), or picked from a list for a key the sample gives
-  the choices of (`yes`/`no`, `petscii = auto|yes|no`...).  **Space** steps
-  through the choices; **Del** takes the key out (its default again).  An
-  empty box is "not set"; type `""` for an empty value.
+  Home, End, Del, ^U), or picked from a list (a `↕` at the right of the
+  line).  **Space** steps through the choices; **Del** takes the key out
+  (its default again).  An empty box is "not set"; type `""` for an empty
+  value.
 - `[item NAME]` and `[number NAME]` are lists: add one, open it, rename
   it or delete it.  An item renamed or deleted is renamed or taken out of
   `[menu] items` too.  `[groups]` takes groups of the sysop's own names.
+- **Add a menu item** starts from one of the sample's items (the BBS by
+  rlogin or by handoff, PPP, change password, last callers, a door, a
+  shell, ZMODEM...) or an empty one.  Its keys are filled in, it goes on
+  `[menu] items`, and when the sample's key is taken by another item it
+  gets a free one.
+
+### Values picked from what there is
+
+Most keys are picked from a list rather than typed, each value with a
+note of what it is.  Some lists are the only values a key takes (`mode`,
+`tty`, `after`, `charset`, `petscii`, `driver`, `hash`, `emulation`,
+`comm_type`, `fullscreen`, `password_change`, every `yes`/`no`); the
+rest are suggestions, with "Type another value…" for one's own.  Lists of
+several values have checkboxes (Space checks one, Enter is done):
+
+| Key | Offered |
+|---|---|
+| `[general] auth` | file, ldap, sql, system, checked in the order they are asked |
+| `[menu] items` | each `[item]` with its label and mode, in the menu's order |
+| `[item] key` | the letters of the item's name and label, each "free" or "taken by [item x]" / "the hangup" |
+| `[item] users`, `[number] user` | the users file's users |
+| `[item] groups`, `[system] groups` | `[groups]`' groups with their members, and the system's groups |
+| `[item] run_as`, `[authd] allow_users` | `{user}`, and the system's login accounts |
+| `[item] dropfile` | door32.sys, door.sys, dorinfo1.def, dorinfo#.def |
+| `[item] path` | the sockets in /run/modemmenu and /run/bbs |
+| `[autoppp] item`, `[number] item` | the menu's items |
+| `[server]`/`[authd] listen` | the usual socket, marked "taken by" when the other uses it |
+| `socket_group`, `socket_mode` | the system's groups; 0660, 0600, 0666 |
+| `[ppp_pool] dns` | this server's PPP address, resolv.conf's servers, Cloudflare, Google, Quad9 |
+| `[aol] networks` | aolnet, sprintnet, tymnet, p3 |
+| time limits, `time_warning`, `min_baud`, `rate`, `security`, `log`... | common values |
+
 - **F1** shows the whole help of the line, **/** (or F12, or Alt and a
   letter) the menus, **Esc** goes back a window, **F10** saves, **F9**
   quits (asking to save what changed).  `^L` draws the screen again.
-- The help of every key is the sample's ([reference](reference.md)), built
-  into the program.
+- The descriptions are built into the program; the sample's notes are
+  those of the [reference](reference.md).
 
 Saving checks the file first, as `modemmenu -check` does; a file that
 does not check is saved only when asked again ("Save anyway").  The file

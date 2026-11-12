@@ -15,6 +15,7 @@ import (
 
 	"github.com/D-Modem/menu/internal/confdoc"
 	"github.com/D-Modem/menu/internal/confedit"
+	"github.com/D-Modem/menu/internal/config"
 	"github.com/D-Modem/menu/internal/term"
 	"github.com/D-Modem/menu/internal/tui"
 	"github.com/D-Modem/menu/samples"
@@ -174,7 +175,7 @@ func (u *setupUI) fill(p *page) {
 				if kd == nil {
 					continue
 				}
-				e := tui.Entry{ID: "kind:" + k, Label: u.title(k), Help: kd.Help, Mark: "►"}
+				e := tui.Entry{ID: "kind:" + k, Label: u.title(k), Help: kindHelp(kd), Mark: "►"}
 				switch {
 				case kd.Named:
 					n := len(u.named(k))
@@ -202,8 +203,15 @@ func (u *setupUI) fill(p *page) {
 			items = append(items, tui.Entry{ID: "sec:" + s, Label: name, Value: v, Mark: "►",
 				Changed: u.changed(s, ""), Help: "Enter opens it; Del deletes it."})
 		}
-		items = append(items, tui.Entry{Heading: true}, tui.Entry{ID: "add", Label: "Add a new one…",
-			Help: "A new [" + p.kind.Name + " NAME]: its name first."})
+		add := tui.Entry{ID: "add", Label: "Add a new one…", Help: "A new [" + p.kind.Name + " NAME]: its name first."}
+		if p.kind.Name == "item" {
+			add.Label = "Add a menu item…"
+			add.Help = "A new item for the menu: start from one of the sample's (the BBS, PPP, a door, change password, last callers...) or an empty one, then give it a name.  It is added to the menu's items."
+		}
+		if p.kind.Name == "number" {
+			add.Help = "Settings for one more phone number: type the caller's number as its name."
+		}
+		items = append(items, tui.Entry{Heading: true}, add)
 	case "section":
 		kd := p.kind
 		if kd.Free != "" {
@@ -218,12 +226,7 @@ func (u *setupUI) fill(p *page) {
 		known := map[string]bool{}
 		for _, k := range kd.Keys {
 			known[k.Name] = true
-			e := u.keyEntry(p.sec, k)
-			if strings.TrimSpace(k.Help) == "" && kd.Help != "" {
-				// the section's comment is the key's
-				e.Help = capFirst(strings.TrimSpace(kd.Help))
-			}
-			items = append(items, e)
+			items = append(items, u.keyEntry(p.sec, kd, k))
 		}
 		for _, k := range u.doc.Keys(p.sec) {
 			if !known[k] {
@@ -242,10 +245,19 @@ func (u *setupUI) fill(p *page) {
 	p.l.Fix()
 }
 
+// kindHelp: what a section is for
+func kindHelp(kd *confdoc.Kind) string {
+	if d := setupDesc(kd.Name, ""); d != "" {
+		return d
+	}
+	return capFirst(strings.TrimSpace(kd.Help))
+}
+
 // keyEntry: a key's line in its section's window
-func (u *setupUI) keyEntry(sec string, k *confdoc.Key) tui.Entry {
+func (u *setupUI) keyEntry(sec string, kd *confdoc.Kind, k *confdoc.Key) tui.Entry {
 	e := tui.Entry{ID: "key:" + k.Name, Label: k.Name, Changed: u.changed(sec, k.Name)}
-	if v, ok := u.doc.Get(sec, k.Name); ok {
+	v, set := u.doc.Get(sec, k.Name)
+	if set {
 		e.Value = v
 		if v == "" {
 			e.Value = `""`
@@ -256,8 +268,11 @@ func (u *setupUI) keyEntry(sec string, k *confdoc.Key) tui.Entry {
 			e.Note = "sample: " + k.Value
 		}
 	}
-	e.Help = keyHelp(k)
-	if len(choices(k)) > 1 {
+	e.Help = setupDesc(kd.Name, k.Name)
+	if e.Help == "" {
+		e.Help = keyHelp(k)
+	}
+	if cs := u.choicesFor(sec, kd, k); cs != nil && len(cs.list) > 0 {
 		e.Mark = "↕"
 	}
 	return e
@@ -544,7 +559,8 @@ func (u *setupUI) command(id string) (bool, error) {
 // setupKeys: Help > Keys
 const setupKeys = "↑ ↓ PgUp PgDn Home End, or a letter: move the bar.\n" +
 	"Enter: open a window, change a value (typed, or picked from a list).\n" +
-	"Space: the next of a value's choices.   Del: back to the default.\n" +
+	"Space: the next of a value's choices (in a list of checkboxes: check one).\n" +
+	"Del: back to the default.\n" +
 	"Esc: back a window.   / or F12 or Alt and a letter: the menus.\n" +
 	"F1: the help of the line.   F10: save.   F9: quit.   ^L: draw again."
 
@@ -582,8 +598,29 @@ func (u *setupUI) pick(p *page, space bool) error {
 				l: &tui.List{Title: "[" + s + "]", MinW: 56}})
 		}
 	case e.ID == "add":
+		var tpl *itemTemplate
+		suggestName := ""
+		if p.kind.Name == "item" {
+			tpls := itemTemplates(samples.Conf)
+			values, notes := []string{"An empty item"}, []string{"set it up from scratch"}
+			for _, t := range tpls {
+				values = append(values, t.get("label"))
+				notes = append(notes, firstSentence(t.about))
+			}
+			i, ok, err := d.Choose(u.frame(-1), "Add a menu item: start from", values, notes, 0)
+			if err != nil || !ok {
+				return err
+			}
+			if i > 0 {
+				tpl = &tpls[i-1]
+				suggestName = tpl.name
+				for n := 2; u.doc.Has("item " + suggestName); n++ {
+					suggestName = fmt.Sprintf("%s%d", tpl.name, n)
+				}
+			}
+		}
 		name, ok, err := d.Input(u.frame(-1), "New ["+p.kind.Name+" NAME]", "Its name (one word: letters, digits, - and _"+
-			map[bool]string{true: "; for a number, the caller's number", false: ""}[p.kind.Name == "number"]+"):", "", 32, false)
+			map[bool]string{true: "; for a number, the caller's number", false: ""}[p.kind.Name == "number"]+"):", suggestName, 32, false)
 		if err != nil || !ok || name == "" {
 			return err
 		}
@@ -594,7 +631,11 @@ func (u *setupUI) pick(p *page, space bool) error {
 		sec := p.kind.Name + " " + name
 		u.doc.AddSection(sec)
 		if p.kind.Name == "item" {
-			u.doc.Set(sec, "label", name)
+			if tpl != nil {
+				u.fromTemplate(sec, tpl)
+			} else {
+				u.doc.Set(sec, "label", name)
+			}
 			if v, ok := u.doc.Get(menuSection, "items"); ok {
 				u.doc.Set(menuSection, "items", strings.TrimSpace(v+" "+name))
 			}
@@ -670,7 +711,8 @@ func (u *setupUI) renameInItems(old, name string) {
 	u.doc.Set(menuSection, "items", strings.Join(out, " "))
 }
 
-// edit: a key's value: picked from its choices, or typed
+// edit: a key's value: picked from its choices (or checked off, for a
+// list of some at once), or typed
 func (u *setupUI) edit(p *page, key string, space bool) error {
 	d := u.d
 	var k *confdoc.Key
@@ -681,53 +723,148 @@ func (u *setupUI) edit(p *page, key string, space bool) error {
 		k = &confdoc.Key{Name: key}
 	}
 	cur, set := u.doc.Get(p.sec, key)
-	cs := choices(k)
-	if len(cs) > 1 {
+	var cs *choiceSet
+	if p.kind != nil {
+		cs = u.choicesFor(p.sec, p.kind, k)
+	}
+	if cs != nil && len(cs.list) == 0 {
+		cs = nil
+	}
+	switch {
+	case cs != nil && cs.multi:
+		if space {
+			return nil
+		}
+		return u.editMulti(p, key, cs, cur, set)
+	case cs != nil:
+		if set && !cs.has(cur) {
+			cs.list = append(cs.list, choice{cur, "set now"})
+		}
 		at := -1
-		for i, c := range cs {
-			if strings.EqualFold(c, cur) {
+		for i, c := range cs.list {
+			if strings.EqualFold(c.value, cur) {
 				at = i
 			}
 		}
 		if space {
-			u.doc.Set(p.sec, key, cs[(at+1)%len(cs)])
+			u.doc.Set(p.sec, key, cs.list[(at+1)%len(cs.list)].value)
 			return nil
 		}
-		def := "(not set: the default)"
-		list := append(append([]string{}, cs...), def, "Type a value…")
+		values, notes := cs.values(), cs.notes()
+		values = append(values, "(not set)")
+		notes = append(notes, defaultNote(k))
+		if cs.open {
+			values = append(values, "Type another value…")
+			notes = append(notes, "")
+		}
 		start := at
 		if !set {
-			start = len(cs)
+			start = len(cs.list)
 		}
-		i, ok, err := d.Choose(u.frame(-1), key, list, nil, max(start, 0))
+		i, ok, err := d.Choose(u.frame(-1), key, values, notes, max(start, 0))
 		if err != nil || !ok {
 			return err
 		}
 		switch {
-		case i < len(cs):
-			u.doc.Set(p.sec, key, cs[i])
+		case i < len(cs.list):
+			u.doc.Set(p.sec, key, cs.list[i].value)
 			return nil
-		case i == len(cs):
+		case i == len(cs.list):
 			u.doc.Unset(p.sec, key)
 			return nil
 		}
-	} else if space {
+	case space:
 		return nil
 	}
-	prompt := strings.TrimSpace(k.Help)
-	if prompt != "" {
-		prompt = strings.ToUpper(prompt[:1]) + prompt[1:]
+	return u.typeValue(p, k, cur, set)
+}
+
+// defaultNote: what a key is when it is not set
+func defaultNote(k *confdoc.Key) string {
+	if k.Value != "" {
+		return "the default (sample: " + k.Value + ")"
+	}
+	return "the default"
+}
+
+// editMulti: a list's values checked off; those set that the list does
+// not have stay, after them
+func (u *setupUI) editMulti(p *page, key string, cs *choiceSet, cur string, set bool) error {
+	have := config.Fields(cur)
+	// the ones set first, in their order (the order counts for some:
+	// [general] auth, [menu] items), then the rest
+	var list []choice
+	for _, v := range have {
+		note := "set now"
+		for _, c := range cs.list {
+			if strings.EqualFold(c.value, v) {
+				note = c.note
+			}
+		}
+		list = append(list, choice{v, note})
+	}
+	for _, c := range cs.list {
+		if !contains(have, c.value) {
+			list = append(list, c)
+		}
+	}
+	on := make([]bool, len(list))
+	for i := range have {
+		on[i] = true
+	}
+	all := &choiceSet{list: list}
+	extra := ""
+	if cs.open {
+		extra = "Type the list…"
+	}
+	out, typed, ok, err := u.d.ChooseMulti(u.frame(-1), key+": check the ones to have", all.values(), all.notes(), on, extra)
+	if err != nil || !ok {
+		return err
+	}
+	if typed {
+		var k *confdoc.Key
+		if p.kind != nil {
+			k = p.kind.ByKey[key]
+		}
+		if k == nil {
+			k = &confdoc.Key{Name: key}
+		}
+		return u.typeValue(p, k, cur, set)
+	}
+	var vs []string
+	for i, c := range list {
+		if out[i] {
+			vs = append(vs, c.value)
+		}
+	}
+	if len(vs) == 0 {
+		u.doc.Unset(p.sec, key)
+		return nil
+	}
+	u.doc.Set(p.sec, key, strings.Join(vs, " "))
+	return nil
+}
+
+// typeValue: a key's value typed in a box
+func (u *setupUI) typeValue(p *page, k *confdoc.Key, cur string, set bool) error {
+	key := k.Name
+	prompt := ""
+	if p.kind != nil {
+		prompt = setupDesc(p.kind.Name, key)
+	}
+	if prompt == "" {
+		prompt = capFirst(strings.TrimSpace(k.Help))
 	}
 	if len(prompt) > 230 {
 		prompt = prompt[:229] + "…"
 	}
-	if !strings.HasSuffix(prompt, ".") && prompt != "" {
+	if !strings.HasSuffix(prompt, ".") && !strings.HasSuffix(prompt, ")") && prompt != "" {
 		prompt += "."
 	}
 	if !set && k.Value != "" {
 		prompt += "  Sample: " + k.Value
 	}
-	v, ok, err := d.Input(u.frame(-1), "["+p.sec+"] "+key, prompt+"  (Empty: not set, the default; \"\" for nothing.)", cur, 1024, false)
+	v, ok, err := u.d.Input(u.frame(-1), "["+p.sec+"] "+key, prompt+"  (Empty: not set, the default; \"\" for nothing.)", cur, 1024, false)
 	if err != nil || !ok {
 		return err
 	}
@@ -765,7 +902,8 @@ func (u *setupUI) remove(p *page) error {
 	return nil
 }
 
-// help: F1, the whole help of the bar's line
+// help: F1, the whole help of the bar's line: what it does, the
+// sample's notes, and the values it may be picked from
 func (u *setupUI) help(p *page) error {
 	e := p.l.Selected()
 	if e == nil {
@@ -774,14 +912,58 @@ func (u *setupUI) help(p *page) error {
 	text := e.Help
 	if strings.HasPrefix(e.ID, "key:") && p.kind != nil {
 		if k := p.kind.ByKey[strings.TrimPrefix(e.ID, "key:")]; k != nil {
-			text = keyHelp(k)
-			if len(k.Examples) > 0 {
-				text += "\n\nAlso: " + strings.Join(k.Examples, ", ")
+			text = keyFullHelp(setupDesc(p.kind.Name, k.Name), k, u.choicesFor(p.sec, p.kind, k))
+		}
+	}
+	if strings.HasPrefix(e.ID, "kind:") {
+		if kd := u.byKind[strings.TrimPrefix(e.ID, "kind:")]; kd != nil {
+			text = kindHelp(kd)
+			if h := capFirst(strings.TrimSpace(kd.Help)); h != "" && h != text {
+				text += "\n\nFrom the sample: " + h
 			}
 		}
 	}
 	_, err := u.d.Message(u.frame(-1), tui.Info, e.Label, text)
 	return err
+}
+
+// keyFullHelp: a key's description, the sample's notes, its choices
+func keyFullHelp(desc string, k *confdoc.Key, cs *choiceSet) string {
+	text := desc
+	sample := keyHelp(k)
+	closedNotes := cs != nil && !cs.open && len(cs.list) > 2
+	switch {
+	case text == "":
+		text = sample
+	case closedNotes:
+		// the list below says what the sample's help does
+	case strings.TrimSpace(k.Help) != "":
+		text += "\n\nFrom the sample: " + sample
+	case k.Value != "":
+		text += "  Sample: " + k.Value
+	}
+	if cs != nil && len(cs.list) > 0 {
+		var b strings.Builder
+		switch {
+		case cs.multi:
+			b.WriteString("\n\nCheck any of:")
+		case cs.open:
+			b.WriteString("\n\nSuggested (or type your own):")
+		default:
+			b.WriteString("\n\nOne of:")
+		}
+		for _, c := range cs.list {
+			b.WriteString("\n  " + c.value)
+			if c.note != "" {
+				b.WriteString(": " + c.note)
+			}
+		}
+		text += b.String()
+	}
+	if len(k.Examples) > 0 && (cs == nil || cs.open) {
+		text += "\n\nAlso in the sample: " + strings.Join(k.Examples, ", ")
+	}
+	return text
 }
 
 // summary: what the file sets up, for a check that passed
@@ -1001,3 +1183,43 @@ func capFirst(s string) string {
 
 // menuSection: [menu], whose items = the setup keeps up with the items'
 const menuSection = "menu"
+
+// fromTemplate: a new [item NAME] given a sample item's keys; its key a
+// free one when the sample's is taken
+func (u *setupUI) fromTemplate(sec string, t *itemTemplate) {
+	for _, kv := range t.keys {
+		u.doc.Set(sec, kv[0], kv[1])
+	}
+	key := strings.ToUpper(t.get("key"))
+	by, taken := u.takenKeys(sec)[key]
+	if key == "" || !taken {
+		return
+	}
+	for _, c := range u.keyChoices(sec).list {
+		if c.note == "free" {
+			u.doc.Set(sec, "key", c.value)
+			u.flash = "The sample's key " + key + " is " + by + ", so this item has " + c.value + "."
+			return
+		}
+	}
+}
+
+// firstSentence: s up to its first stop (". ", ": " or " ("), where
+// that leaves a few words
+func firstSentence(s string) string {
+	cut := len(s)
+	for _, sep := range []string{". ", ": ", " ("} {
+		for from := 0; ; {
+			i := strings.Index(s[from:], sep)
+			if i < 0 {
+				break
+			}
+			if from+i >= 12 {
+				cut = min(cut, from+i)
+				break
+			}
+			from += i + len(sep)
+		}
+	}
+	return s[:cut]
+}

@@ -366,7 +366,14 @@ command = echo info
 	for try := 0; try < 50; try++ {
 		l, err := dialLine(sock, "")
 		if err != nil {
-			t.Fatal(err)
+			// still busy: the server told it so and hung up before the
+			// header was written (broken pipe); try again
+			last = err
+			if l != nil {
+				l.conn.Close()
+			}
+			time.Sleep(100 * time.Millisecond)
+			continue
 		}
 		last = l.expect("login: ")
 		l.conn.Close()
