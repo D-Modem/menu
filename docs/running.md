@@ -1,16 +1,18 @@
 # Running it from app_dmodem
 
 
-`app_dmodem`, the Asterisk module of
-[D-Modem](https://github.com/D-Modem/D-Modem) (`frontend/asterisk/`),
-hands it the caller's line in one of two ways: it starts modemmenu for
-each call (`mode = exec`), or connects each call to one `modemmenu
--serve` on a unix socket (`mode = unix`, below).
+`app_dmodem` is the Asterisk module of
+[D-Modem](https://github.com/D-Modem/D-Modem) (`frontend/asterisk/`).
+It gives the line of the caller to modemmenu in one of two ways:
+
+- It starts modemmenu for each call (`mode = exec`).
+- It connects each call to one `modemmenu -serve` on a unix socket
+  (`mode = unix`, refer to the section below).
 
 ## A program for each call
 
-app_dmodem runs modemmenu as a `mode = exec` program on the caller's
-line:
+app_dmodem runs modemmenu as a `mode = exec` program on the line of the
+caller:
 
 ```
 ; dmodem.conf
@@ -23,20 +25,22 @@ exten => 5551000,1,DModem(menu)
  same => n,Hangup()
 ```
 
-modemmenu reads the call's details from app_dmodem's environment:
-`DMODEM_RATE` (tx/rx bit/s), `DMODEM_CALLERID`, `DMODEM_DIALED`,
-`DMODEM_CHANNEL`, `DMODEM_PROFILE` and `DMODEM_PEER` (the address the
-call came from by SIP).  `DMODEM_DIALED` needs an
-app_dmodem that sets it.  The `-rate`, `-callerid` and `-dialed` options
-set these instead, e.g. under a getty on another modem.
+modemmenu reads the details of the call from the environment of
+app_dmodem. The details are `DMODEM_RATE` (tx/rx bit/s),
+`DMODEM_CALLERID`, `DMODEM_DIALED`, `DMODEM_CHANNEL`, `DMODEM_PROFILE`
+and `DMODEM_PEER` (the SIP address of the call). For `DMODEM_DIALED`,
+the app_dmodem must be a version that sets it. The `-rate`, `-callerid`
+and `-dialed` options can set these values in place of the environment.
+For example, use them under a getty on a different modem.
 
-The line is raw (app_dmodem's pty): modemmenu echoes and edits what the
-caller types itself.  Its exit, like the selection's, hangs up the call.
+The line is raw (the pty of app_dmodem). modemmenu itself echoes and
+edits the text that the caller types. When modemmenu exits, the call
+hangs up. The same occurs when the selection exits.
 
 ## One server on a unix socket
 
 `modemmenu -serve` listens on `[server] listen` (a unix socket, or
-`tcp:host:port`) and app_dmodem connects each call to it:
+`tcp:host:port`). app_dmodem connects each call to it:
 
 ```
 ; dmodem.conf
@@ -52,45 +56,61 @@ socket_mode = 0660
 socket_group = asterisk
 ```
 
-A socket has no environment, so app_dmodem's `header = yes` sends the
-call's details first: `DMODEM_CHANNEL`, `DMODEM_PROFILE`, `DMODEM_RATE`,
-`DMODEM_CALLERID`, `DMODEM_DIALED`, `DMODEM_CONNECTED` (Unix time) and
-`DMODEM_PEER`, one `NAME=value` per line, then an empty line, then the
-caller's bytes.
-`[server] header = yes` (the default) reads it; with `header = no` the
-caller's bytes come from the start and the details are unknown.
+A socket has no environment. Thus `header = yes` in app_dmodem sends
+the details of the call first. The header has these items, in this
+sequence:
 
-Each connection gets a session of its own: a new pty with modemmenu on
-it, as `mode = exec` would give it, so pppd, shells and `^C` work the
-same.  The caller hanging up hangs up the pty; the session ending closes
-the connection, which hangs up the call.
+1. `DMODEM_CHANNEL`, `DMODEM_PROFILE`, `DMODEM_RATE`,
+   `DMODEM_CALLERID`, `DMODEM_DIALED`, `DMODEM_CONNECTED` (Unix time)
+   and `DMODEM_PEER`, one `NAME=value` on each line.
+2. An empty line.
+3. The bytes from the caller.
 
-Many callers at once are many connections: app_dmodem connects each
-call by itself, and the server serves each connection in its own
-session, up to `max_sessions`.  An item that hands the caller on to a
-server (`mode = unix`, `tcp`, `telnet`, `rlogin`), a BBS for one, opens
-a connection of its own for that caller from their session and copies
-the bytes between it and the session's line.
+`[server] header = yes` (the default) reads the header. With
+`header = no`, the bytes of the caller come from the start, and the
+details are unknown.
+
+Each connection gets its own session. The session is a new pty with
+modemmenu on it, the same as with `mode = exec`. Thus pppd, shells and
+`^C` operate in the same way. When the caller hangs up, the pty hangs
+up. When the session ends, it closes the connection, and the call hangs
+up.
+
+If many callers call at the same time, there are many connections.
+app_dmodem connects each call separately. The server serves each
+connection in its own session, to a maximum of `max_sessions`. Some
+items send the caller to a server (`mode = unix`, `tcp`, `telnet`,
+`rlogin`), for example, to a BBS. Such an item opens a new connection
+for that caller from the session of the caller. Then it copies the bytes
+between that connection and the line of the session.
 
 ### The handoff: the line itself, nothing copied
 
-With app_dmodem's `handoff = yes` the modem's line is a pty, and its
-terminal comes with the header (`SCM_RIGHTS`).  The session then runs on
-that terminal as on a serial port: the menu, a shell and pppd (which
-needs a tty) are on the modem's line itself, and `-serve` copies nothing.
-The connection carries nothing more; it stays open while the session
-lasts.  The caller hanging up closes it and hangs the session up
-(`SIGHUP`); the session ending closes it, and app_dmodem hangs up once
-the last bytes are out.
+With `handoff = yes` in app_dmodem, the line of the modem is a pty.
+The terminal of the pty comes with the header (`SCM_RIGHTS`). Then the
+session runs on that terminal, as on a serial port. The menu, a shell
+and pppd (which must have a tty) are on the line of the modem itself.
+`-serve` copies nothing.
+
+After the header, the connection carries no more data. It stays open
+while the session continues. When the caller hangs up, the connection
+closes and the session hangs up (`SIGHUP`). When the session ends, it
+closes the connection. Then app_dmodem hangs up after the last bytes
+go out.
 
 An item with `handoff = yes` (`mode = unix`, `header = yes`) does the
-same towards its server: the session's line goes to the server with the
-header, the menu waits, and when the server closes the connection the
-line is back (`after = menu` shows the menu again).  The BBS's
-`[listen]` with `handoff = yes` takes it.  Bytes the menu had read and
-not used, and the item's `send`, come on the connection right after the
-header.  The time limit still holds: at the deadline the menu closes the
-connection, which takes the line back.
+same to its server:
+
+1. The line of the session goes to the server with the header.
+2. The menu waits.
+3. When the server closes the connection, the line comes back to the
+   menu. `after = menu` shows the menu again.
+
+The `[listen]` of the BBS with `handoff = yes` accepts the line. Bytes
+that the menu read but did not use, and the `send` of the item, come on
+the connection immediately after the header. The time limit continues to
+apply. At the deadline, the menu closes the connection and gets the line
+back.
 
 ```
 ; dmodem.conf
@@ -110,28 +130,35 @@ handoff = yes
 after = menu
 ```
 
-Without `handoff`, or over TCP, the bytes are copied as before.
+Without `handoff`, or on TCP, modemmenu copies the bytes, as described above.
 
 | `[server]` option | default | |
 |---|---|---|
-| `listen` | `/run/modemmenu/modemmenu.sock` | a unix socket's path, or `tcp:host:port` |
-| `socket_mode` | `0660` | the socket's permissions: who may connect |
-| `socket_group` | | the socket's group, e.g. Asterisk's |
+| `listen` | `/run/modemmenu/modemmenu.sock` | the path of a unix socket, or `tcp:host:port` |
+| `socket_mode` | `0660` | the permissions of the socket: the users that can connect |
+| `socket_group` | | the group of the socket, for example, the group of Asterisk |
 | `header` | `yes` | read the session header first |
-| `header_timeout` | `10` | seconds for the header to come |
-| `trust_user` | `no` | a header's `MODEM_USER` is logged in already (below) |
-| `max_sessions` | `32` | sessions at once; more callers hear the lines are busy |
+| `header_timeout` | `10` | the maximum time in seconds until the header comes |
+| `trust_user` | `no` | the `MODEM_USER` of a header is already logged in (refer to the section below) |
+| `max_sessions` | `32` | the maximum number of sessions at the same time. More callers hear that the lines are busy |
 
-`-listen PATH` overrides `listen`.  `SIGTERM` hangs up every session,
-removes the socket and ends the server; a stale socket left by a server
-that died is replaced at start, a live one is not.
-[modemmenu.service.sample](../samples/modemmenu.service.sample) runs it under
-systemd, which also makes `/run/modemmenu`.  Each connection is logged
-with its peer's pid and uid.
+`-listen PATH` overrides `listen`. `SIGTERM` hangs up all sessions,
+removes the socket and stops the server. If a server stopped
+unexpectedly and left an old socket, the new server replaces that socket
+when it starts. It does not replace a socket that is in use.
+[modemmenu.service.sample](../samples/modemmenu.service.sample) runs the
+server under systemd. systemd also makes `/run/modemmenu`. modemmenu
+records each connection in the log, with the pid and uid of its peer.
 
 ## On FreePBX
 
-[freepbx/](../freepbx/README.md) is a ready-made setup for FreePBX 16 and
-17 with D-Modem's FreePBX module: logins from a users file, one
-`modemmenu -serve` under systemd, and the D-Modem profile and inbound
-route that send calls to it.  `make install-freepbx` installs it.
+[freepbx/](../freepbx/README.md) is a configuration that is ready to use
+for FreePBX 16 and 17 with the FreePBX module of D-Modem. It has these
+parts:
+
+- Logins from a users file.
+- One `modemmenu -serve` under systemd.
+- The D-Modem profile and the inbound route that send calls to the
+  server.
+
+`make install-freepbx` installs it.
