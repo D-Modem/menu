@@ -1,49 +1,75 @@
 # Tests
 
 
-`make test` checks the password schemes, the file and SQLite backends,
-the menu's choices and the telnet client, and runs modemmenu on a pty as
-app_dmodem does: a wrong and a right login, the message of the day,
-choices by key, name and alias, an unknown choice and `?`, an rlogin BBS
-and back to the menu, a cooked shell, and an exec selection's
-environment and session file.  It also runs `modemmenu -serve` on a unix
-socket: a session from an app_dmodem header (on a pty of its own), a
-caller hanging up, another modemmenu handing a logged-in caller over by
-a `mode = unix` item, and `SIGTERM`.  Drop files are tested line by line in all three formats
-(Synchronet's defaults, the other settings, the 31-line `DOOR.SYS`,
-names split for `DORINFO1.DEF`) and on a call (the files, their names,
-the node, the environment, the clean-up).  Calls test who sees what (users,
-groups, `min_baud`, caller ID), a guest, signups (logged in at once, and
-pending), refused and known numbers, and a selection hung up at the
-day's limit, then the day's next call refused.  Password changes are
-tested in the users file (other lines and notes kept) and in SQLite, and
-on a call: a wrong current password, the rules for the new one, the
-change, the next login with it, and a guest.  The auth socket is
-tested: right and wrong passwords, unknown, malformed and locked users,
-`allow_users` and its settings.  AutoPPP is tested with the real
-`modemmenu.so` loaded by a stand-in for pppd ([pppd/test/host.c](../pppd/test/host.c),
-exporting what pppd exports to plugins; this needs a C compiler and
-`ppp-dev`): PPP frames told from names, PAP logins right and wrong,
-`maxconnect` from the time limit, the access item, `attempts`, one login
-a call, and on a call a dialer's frame at the login prompt reaching
-pppd's plugin through the call's socket.  A real pppd needs a kernel
-with PPP (`ppp_generic`).  The time warnings are tested on a call
-(two, the longer first, and none with `time_warning = no`), the last callers list
-(kept to 200, the newest first, no caller ID) on two calls, and Active
-Directory's password encoding.  The connect rate is tested as `{speed}` (the same both ways, apart, not
-known) and on calls (after the banner, left out without a rate, its own
-text, off).  The system backend's uid, root and
-group rules are tested with PAM replaced.
+`make test` does the checks that follow.
 
-Two more tests run when their servers are given:
+- It checks the password schemes, the file and SQLite backends, the
+  menu choices and the telnet client.
+- It runs modemmenu on a pty, as app_dmodem does. On the pty, it tests
+  these items: a wrong login and a correct login, the message of the
+  day, choices by key, by name and by alias, an unknown choice and `?`,
+  an rlogin BBS and the return to the menu, a cooked shell, and the
+  environment and session file of an exec selection.
+- It runs `modemmenu -serve` on a unix socket. It tests these items: a
+  session from an app_dmodem header (on a different pty), a caller who
+  hangs up, a transfer of a logged-in caller from a different modemmenu
+  through a `mode = unix` item, and `SIGTERM`.
+- It tests drop files line by line in all three formats. The tests
+  include the defaults of Synchronet, the other settings, the 31-line
+  `DOOR.SYS`, and names that are split for `DORINFO1.DEF`. It also tests
+  drop files on a call: the files, their names, the node, the
+  environment and the removal of the files after the call.
+- Calls test which items each caller can see (users, groups,
+  `min_baud`, caller ID). Calls also test a guest, signups (logged in
+  immediately, and pending), refused numbers and known numbers. They
+  also test a selection that modemmenu hangs up at the daily limit, and
+  the next call of that day, which modemmenu refuses.
+- It tests password changes in the users file and in SQLite. In the
+  users file, the other lines and notes must stay. On a call, it tests a
+  wrong current password, the rules for the new password, the change,
+  the next login with the new password, and a guest.
+- It tests the auth socket: correct and wrong passwords, unknown,
+  malformed and locked users, `allow_users` and its settings.
+- It tests AutoPPP with the real `modemmenu.so`. A stand-in for pppd
+  loads the plugin ([pppd/test/host.c](../pppd/test/host.c)). The
+  stand-in exports the same items that pppd exports to plugins. This
+  test must have a C compiler and `ppp-dev`. The test examines these
+  items:
+  - PPP frames, which modemmenu must tell apart from names.
+  - Correct and wrong PAP logins.
+  - `maxconnect` from the time limit.
+  - The access item, `attempts`, and one login for each call.
+  - On a call, a frame from a dialer at the login prompt. The frame must
+    get to the pppd plugin through the socket of the call.
+
+  A real pppd must have a kernel with PPP (`ppp_generic`).
+- It tests the time warnings on a call. There must be two warnings, with
+  the longer warning first. With `time_warning = no`, there must be no
+  warning.
+- It tests the list of the last callers on two calls. The list keeps a
+  maximum of 200 callers, shows the newest caller first and shows no
+  caller ID.
+- It tests the password encoding of Active Directory.
+- It tests the connect rate as `{speed}`: the same rate in the two
+  directions, different rates, and an unknown rate. It also tests the
+  connect rate on calls: after the banner, removed when there is no
+  rate, its own text, and disabled.
+- It tests the uid, root and group rules of the system backend, with a
+  replacement for PAM.
+
+Two more tests run if you give them their servers:
 
 - `MODEMMENU_TEST_PAM=user:password make test`, as root with
-  `/etc/pam.d/modemmenu`: PAM against a real account, and its password
-  changed and back (the service needs a password stack).
-- `MODEMMENU_TEST_LDAP=ldap://host:port make test`: the LDAP backend,
-  against a server with `uid=lduser,ou=people,dc=example,dc=com`
-  (password `ldpass`), and that password changed and back (the server
-  must let users write their own `userPassword`); with
-  `ou=groups,dc=example,dc=com` holding `cn=sysops` (`groupOfNames`,
-  `member` lduser), `cn=dialup` (`posixGroup`, `memberUid` lduser) and
-  `cn=other` (without), LDAP groups too.
+  `/etc/pam.d/modemmenu`: this tests PAM against a real account. It
+  changes the password of the account and then changes it back. The
+  service must have a password stack.
+- `MODEMMENU_TEST_LDAP=ldap://host:port make test`: this tests the LDAP
+  backend against a server that has
+  `uid=lduser,ou=people,dc=example,dc=com` (password `ldpass`). It
+  changes that password and then changes it back. The server must let
+  users write their own `userPassword`. If
+  `ou=groups,dc=example,dc=com` contains the groups that follow, the
+  test also examines LDAP groups:
+  - `cn=sysops` (`groupOfNames`, `member` lduser)
+  - `cn=dialup` (`posixGroup`, `memberUid` lduser)
+  - `cn=other` (without lduser)
