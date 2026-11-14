@@ -1,10 +1,13 @@
 # The sysop's setup
 
-`modemmenu -setup` changes `modemmenu.conf` on a full screen, as the BBS
-setup programs of the 1990s did: a menu bar of pull-down menus, a blue
-desk, a window for each section cascading over the one it was opened
-from, the help of the line under the bar in a box below, and the keys on
-a bar at the foot.
+`modemmenu -setup` changes `modemmenu.conf` on a full screen. It looks
+like the setup programs of BBSs from the 1990s:
+
+- A menu bar with pull-down menus, on a blue desktop.
+- A window for each section. Each window cascades over the window that
+  opened it.
+- A box below the windows, with the help for the line under the bar.
+- A bar at the bottom of the screen, which shows the keys.
 
 ![The full-screen menu and the setup](https://raw.githubusercontent.com/D-Modem/menu/main/.github/screens.png)
 
@@ -12,73 +15,91 @@ a bar at the foot.
 modemmenu -setup -config /etc/asterisk/modemmenu.conf
 ```
 
-- The first window has every section, under Login, Users, Menu,
-  Dial-up and Server (the same as the bar's menus).  Enter opens one: its
-  keys and their values, `(not set)` and the sample's value for those the
-  file leaves out.
-- Every section and key has a line under the bar saying what it does,
-  written for the sysop; **F1** adds the sample's own notes and the values
-  it can be picked from.
-- **Enter** changes the value under the bar: typed in a box (cursor keys,
-  Home, End, Del, ^U), or picked from a list (a `↕` at the right of the
-  line).  **Space** steps through the choices; **Del** takes the key out
-  (its default again).  An empty box is "not set"; type `""` for an empty
-  value.
-- `[item NAME]` and `[number NAME]` are lists: add one, open it, rename
-  it or delete it.  An item renamed or deleted is renamed or taken out of
-  `[menu] items` too.  `[groups]` takes groups of the sysop's own names.
-- **Add a menu item** starts from one of the sample's items (the BBS by
-  rlogin or by handoff, PPP, change password, last callers, a door, a
-  shell, ZMODEM...) or an empty one.  Its keys are filled in, it goes on
-  `[menu] items`, and when the sample's key is taken by another item it
-  gets a free one.
+- The first window shows all sections, under Login, Users, Menu,
+  Dial-up and Server. These are the same as the menus of the bar.
+  **Enter** opens a section. The section shows its keys and their values.
+  If the file does not have a key, the section shows `(not set)` and the
+  value from the sample.
+- Each section and key has a line under the bar that tells the sysop
+  what it does. **F1** adds the notes from the sample and the values that
+  you can select.
+- **Enter** changes the value under the bar. You type the value in a box
+  (cursor keys, Home, End, Del, ^U), or you select it from a list. A `↕`
+  at the right of the line shows a list. **Space** moves to the next
+  choice. **Del** removes the key, and the key gets its default value
+  again. An empty box means "not set". For an empty value, type `""`.
+- `[item NAME]` and `[number NAME]` are lists. You can add, open, rename
+  or delete an entry. If you rename or delete an item, the setup also
+  renames it in `[menu] items` or removes it from `[menu] items`.
+  `[groups]` accepts groups with names that the sysop selects.
+- **Add a menu item** starts from one of the items in the sample, or
+  from an empty item. The sample has these items, and other items: the
+  BBS by rlogin or by handoff, PPP, change password, last callers, a
+  door, a shell and ZMODEM. The setup fills in the keys of the item and
+  adds the item to `[menu] items`. If a different item uses the key of
+  the sample, the setup gives the new item a free key.
 
 ### Values picked from what there is
 
-Most keys are picked from a list rather than typed, each value with a
-note of what it is.  Some lists are the only values a key takes (`mode`,
-`tty`, `after`, `charset`, `petscii`, `driver`, `hash`, `emulation`,
-`comm_type`, `fullscreen`, `password_change`, every `yes`/`no`); the
-rest are suggestions, with "Type another value…" for one's own.  Lists of
-several values have checkboxes (Space checks one, Enter is done):
+For most keys, you select the value from a list. You do not type it.
+Each value in the list has a note that tells what it is. For some keys,
+the list has the only values that the key accepts. These keys are
+`mode`, `tty`, `after`, `charset`, `petscii`, `driver`, `hash`,
+`emulation`, `comm_type`, `fullscreen`, `password_change` and all
+`yes`/`no` keys. For the other keys, the list has suggestions. To type
+your own value, select "Type another value…". A list for more than one
+value has checkboxes. **Space** selects a checkbox, and **Enter**
+completes the list:
 
 | Key | Offered |
 |---|---|
-| `[general] auth` | file, ldap, sql, system, checked in the order they are asked |
+| `[general] auth` | file, ldap, sql, system, checked in the sequence that you select |
 | `[menu] items` | each `[item]` with its label and mode, in the menu's order |
-| `[item] key` | the letters of the item's name and label, each "free" or "taken by [item x]" / "the hangup" |
-| `[item] users`, `[number] user` | the users file's users |
-| `[item] groups`, `[system] groups` | `[groups]`' groups with their members, and the system's groups |
-| `[item] run_as`, `[authd] allow_users` | `{user}`, and the system's login accounts |
+| `[item] key` | the letters of the name and label of the item, each marked "free" or "taken by [item x]" / "the hangup" |
+| `[item] users`, `[number] user` | the users in the users file |
+| `[item] groups`, `[system] groups` | the groups in `[groups]` with their members, and the groups of the system |
+| `[item] run_as`, `[authd] allow_users` | `{user}`, and the login accounts of the system |
 | `[item] dropfile` | door32.sys, door.sys, dorinfo1.def, dorinfo#.def |
 | `[item] path` | the sockets in /run/modemmenu and /run/bbs |
-| `[autoppp] item`, `[number] item` | the menu's items |
-| `[server]`/`[authd] listen` | the usual socket, marked "taken by" when the other uses it |
-| `socket_group`, `socket_mode` | the system's groups; 0660, 0600, 0666 |
-| `[ppp_pool] dns` | this server's PPP address, resolv.conf's servers, Cloudflare, Google, Quad9 |
+| `[autoppp] item`, `[number] item` | the items of the menu |
+| `[server]`/`[authd] listen` | the usual socket, marked "taken by" if the other section uses it |
+| `socket_group`, `socket_mode` | the groups of the system, and 0660, 0600, 0666 |
+| `[ppp_pool] dns` | the PPP address of this server, the servers in resolv.conf, Cloudflare, Google, Quad9 |
 | `[aol] networks` | aolnet, sprintnet, tymnet, p3 |
 | time limits, `time_warning`, `min_baud`, `rate`, `security`, `log`... | common values |
 
-- **F1** shows the whole help of the line, **/** (or F12, or Alt and a
-  letter) the menus, **Esc** goes back a window, **F10** saves, **F9**
-  quits (asking to save what changed).  `^L` draws the screen again.
-- The descriptions are built into the program; the sample's notes are
-  those of the [reference](reference.md).
+- These keys are available:
+  - **F1** shows all the help for the line.
+  - **/** (or F12, or Alt and a letter) shows the menus.
+  - **Esc** goes back one window.
+  - **F10** saves.
+  - **F9** quits. If there are changes, it asks if you want to save them.
+  - `^L` draws the screen again.
+- The descriptions are part of the program. The notes from the sample
+  are the same as the notes in the [reference](reference.md).
 
-Saving checks the file first, as `modemmenu -check` does; a file that
-does not check is saved only when asked again ("Save anyway").  The file
-keeps its comments, blank lines and order: a changed key is changed on
-its own line (a comment after it kept), a new key goes after the last of
-its section, a new section at the end.  The file is written beside the
-old one and renamed over it, its mode and owner kept.  Each call reads
-the file anew, so the next call has the changes; `[server]` is read when
-`modemmenu -serve` starts.
+Before the setup saves the file, it checks the file, as
+`modemmenu -check` does. If the check fails, the setup saves the file
+only when you ask again ("Save anyway").
 
-With no file yet, the setup starts from the sample and saves it there.
+The file keeps its comments, blank lines and sequence:
+
+- The setup changes a changed key on its own line. It keeps a comment
+  after the key.
+- The setup adds a new key after the last key of its section.
+- The setup adds a new section at the end.
+
+The setup writes the new file next to the old file. Then it renames the
+new file to the name of the old file, and keeps the mode and the owner.
+Each call reads the file again, thus the next call gets the changes.
+modemmenu reads `[server]` when `modemmenu -serve` starts.
+
+If there is no file, the setup starts from the sample and saves the
+result at the path of the file.
 
 ## On the line
 
-A sysop who calls in can have the setup on the menu, as an item of
+A sysop who calls in can get the setup from the menu, as an item with
 `mode = setup`:
 
 ```ini
@@ -89,23 +110,33 @@ mode = setup
 groups = sysops
 ```
 
-It must have `users` or `groups` (modemmenu refuses one without), and is
-never a guest's.  It needs an ANSI terminal of 40x14 at least (80x24 is
-better); others are told so.  The idle timeout does not hold in it: the
-setup waits for the sysop however long they take.  The call's time limit
-(`time_limit`) still does, and what was not saved when the call ends is
-lost.  The file is
-written as the user modemmenu runs as, which must be able to write it.
+The item must have `users` or `groups`. modemmenu refuses the item
+without them. A guest can never get this item. The item must have an
+ANSI terminal of a minimum of 40x14 (80x24 is better). On other
+terminals, modemmenu tells the caller that the terminal is not
+applicable.
+
+The idle timeout does not apply to the setup. The setup waits for the
+sysop for an unlimited time. But the time limit of the call
+(`time_limit`) applies. When the call ends, changes that you did not save
+are lost. modemmenu writes the file as the user that it runs as. That
+user must be able to write the file.
 
 ## Terminals
 
-The screens are drawn in UTF-8 where the terminal shows it, in code page
-437 for SyncTERM and the ANSI terminals of BBSs, in a VT's line-drawing
-set (`ESC ( 0`) for a VT or xterm without UTF-8, and in ASCII when told
-(`[terminal] charset`).  A DEC terminal itself (no colors) gets bold and
-reverse for the colors.  Only the cells that change are sent: moving
-the bar costs a hundred bytes or two.  At the console, `-setup` takes
-UTF-8 from the locale (`LANG`), else the VT set for `TERM=vt*` or
-`xterm*`, code page 437 for `TERM=linux` or `ansi`.
+The setup draws the screens with one of these character sets:
+
+- UTF-8, if the terminal can show it.
+- Code page 437, for SyncTERM and the ANSI terminals of BBSs.
+- The line-drawing set of a VT (`ESC ( 0`), for a VT or xterm without
+  UTF-8.
+- ASCII, if the configuration tells it to (`[terminal] charset`).
+
+A real DEC terminal (no colors) gets bold and reverse in place of the
+colors. The setup sends only the cells that change. A movement of the bar
+uses one or two hundred bytes. At the console, `-setup` gets UTF-8 from
+the locale (`LANG`). If the locale does not give UTF-8, it uses the VT
+set for `TERM=vt*` or `xterm*`, and code page 437 for `TERM=linux` or
+`ansi`.
 
 **See also:** [Configuration](configuration.md#the-full-screen-menu)

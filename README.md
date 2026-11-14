@@ -2,14 +2,15 @@
 
 # modemmenu
 
-A login and menu for dial-up callers, the first thing a caller sees once
-the modems connect.
+modemmenu is a login and a menu for dial-up callers. When the modems
+connect, the caller sees modemmenu first.
 
-modemmenu asks for a user name and password, shows the message of the
-day and offers a menu of what the caller may do: a bulletin board, PPP
-dial-up networking, a shell, or any program. It runs behind
-[D-Modem](https://github.com/D-Modem/D-Modem)'s Asterisk module,
-`app_dmodem`, one process per call or one server for all of them.
+modemmenu asks for a user name and a password. Then it shows the message
+of the day and a menu of the tasks that the caller can do. These tasks
+include a bulletin board, PPP dial-up networking, a shell or any other
+program. modemmenu runs behind `app_dmodem`, the Asterisk module of
+[D-Modem](https://github.com/D-Modem/D-Modem). It can run as one process
+for each call or as one server for all calls.
 
 ```
 Welcome to D-Modem.
@@ -33,19 +34,19 @@ Main menu
 Selection: ppp
 ```
 
-- Logins from a users file, LDAP, SQL (MySQL/MariaDB, PostgreSQL, SQLite) or system accounts through PAM
-- PPP dialers detected (AutoPPP and PAP), with a pppd plugin
-- The classic AOL client dialing in: AOLnet, SprintNet and Tymnet played, then the line to a BBS's AOL host
-- Menus with access by user and group, guests and self sign-up
-- The menu full screen on ANSI and VT terminals (a 90s blue desk, the bar moved with the cursor keys; only what changed is sent, for slow lines), lines for the others
-- `modemmenu -setup`: the configuration on full screens with pull-down menus and the sample's help, for the sysop at the console or calling in
-- Each item starts with the caller's credentials and the call's details: dialed number, caller ID, connect rate, time
-- Drop files for doors, last callers, and handing a caller to another menu
-- A ready-made FreePBX setup ([freepbx/](freepbx/README.md))
+- Logins from a users file, LDAP, SQL (MySQL/MariaDB, PostgreSQL, SQLite) or system accounts through PAM.
+- Detection of PPP dialers (AutoPPP and PAP), with a pppd plugin.
+- Support for the classic AOL client when it dials in. modemmenu emulates AOLnet, SprintNet and Tymnet. Then it connects the line to the AOL host of a BBS.
+- Menus with access by user and by group, guest access and self sign-up.
+- A full-screen menu on ANSI and VT terminals, and a line menu on other terminals. The full-screen menu looks like a blue desktop from the 1990s. The cursor keys move the bar. For slow lines, modemmenu sends only the changes to the screen.
+- `modemmenu -setup`: full screens with pull-down menus and the help text from the sample, to change the configuration. The sysop can use them at the console or on a call.
+- Each item starts with the credentials of the caller and the details of the call: dialed number, caller ID, connect rate and time.
+- Drop files for doors, a list of the last callers, and the transfer of a caller to a different menu.
+- A FreePBX configuration that is ready to use ([freepbx/](freepbx/README.md)).
 
 ## Quick start
 
-Go 1.22 or later:
+You must have Go 1.22 or later. Do these steps:
 
 ```
 make                                                    # with PAM when libpam's headers are there
@@ -54,15 +55,15 @@ modemmenu -config /etc/asterisk/modemmenu.conf -check   # check the configuratio
 modemmenu -config /etc/asterisk/modemmenu.conf -setup   # or change it on a full screen
 ```
 
-then point an `app_dmodem` profile at it ([docs/running.md](docs/running.md)).
+Then configure an `app_dmodem` profile to use modemmenu ([docs/running.md](docs/running.md)).
 
 ## Documentation
 
-The documentation is also a website, [d-modem.github.io/menu](https://d-modem.github.io/menu/), with reference pages made from the code.
+The documentation is also a website, [d-modem.github.io/menu](https://d-modem.github.io/menu/). Some reference pages on the website come from the code.
 
-[docs/](docs/README.md) has building, running, configuration,
-authentication, PPP, security and the tests.
-[samples/modemmenu.conf.sample](samples/modemmenu.conf.sample) has every option.
+[docs/](docs/README.md) has information about these topics: the build,
+operation, configuration, authentication, PPP, security and the tests.
+[samples/modemmenu.conf.sample](samples/modemmenu.conf.sample) has all the options.
 
 ## The D-Modem suite
 
@@ -80,6 +81,7 @@ authentication, PPP, security and the tests.
 
 AGPL-3.0-only ([LICENSE](LICENSE)), or a commercial licence from the D-Modem Authors ([COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)). Contributions come with a contributor agreement ([CONTRIBUTING.md](CONTRIBUTING.md)).
 
-If you modify modemmenu and offer it to callers, the AGPL's section 13
-has you offer them its source: a menu item, the banner or the message of
-the day naming where it is will do.
+If you change modemmenu and offer it to callers, section 13 of the AGPL
+tells you to offer them its source code. To do this, give the location
+of the source code in a menu item, in the banner or in the message of
+the day.

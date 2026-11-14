@@ -3,11 +3,11 @@
 ## PPP dialers: AutoPPP and PAP
 
 
-Windows' Dial-Up Networking and most PPP dialers never see a login
-prompt: they start PPP as soon as the modems connect, and log in inside
-it with PAP.  With `[autoppp] enabled = yes`, a PPP frame where the
-login prompt wants a name makes modemmenu run `[autoppp] command` (pppd)
-on the line instead:
+Dial-Up Networking of Windows and most PPP dialers never see a login
+prompt. They start PPP immediately when the modems connect. Then they log
+in with PAP, inside PPP. With `[autoppp] enabled = yes`, modemmenu looks
+for a PPP frame at the login prompt, where it expects a name. If it gets
+a PPP frame, it runs `[autoppp] command` (pppd) on the line:
 
 ```
 [autoppp]
@@ -16,38 +16,52 @@ command = exec /usr/sbin/pppd nodetach lock passive local {ppp_local}:{ppp_remot
 item = ppp
 ```
 
-pppd's `modemmenu.so` plugin ([pppd/modemmenu.c](../pppd/modemmenu.c);
-`make` builds it when `ppp-dev`'s headers are there, `make install`
-puts it in pppd's plugin directory) asks modemmenu for the PAP login on
-an auth socket of the call's own, in pppd's environment as
-`MODEMMENU_AUTH_SOCKET` (or `{auth_socket}` for its `modemmenu-socket`
-option).  modemmenu checks the login as at the prompt: the backends,
-`user_pattern`, `attempts`, `fail_delay`; then the access rules of
-`[autoppp] item` (its `users`, `groups`, `min_baud`, `callerids`);
-then the time limits.  The time left becomes pppd's `maxconnect` (and
-modemmenu hangs pppd up soon after, should the link outlive it); the
-call is logged, counted in the day's use and the last callers as a
-login at the prompt is.  pppd's scripts get the caller's name
-(`PEERNAME`) and, from modemmenu, `MODEM_*` (the dialed number, the
-caller ID, the rate).
+The source of the `modemmenu.so` plugin for pppd is
+[pppd/modemmenu.c](../pppd/modemmenu.c). If the headers of `ppp-dev`
+are installed, `make` builds the plugin. `make install` puts it in the
+plugin directory of pppd.
 
-- **PAP only.** CHAP and MS-CHAPv2 need the server to keep each
-  password where it can be read back, or an equivalent of it;
-  modemmenu's logins (bcrypt hashes, LDAP, PAM) do not.  The sample's
-  pppd refuses them.
-- **PAP's password crosses the line in clear.** Over the telephone
-  network that was the line's privacy; over SIP it is in the call's RTP:
-  give the trunk SRTP (and SIP over TLS), or keep it on a network you
-  trust.
-- **Fix the addresses** (`local:remote` on pppd's command line, from
-  `[ppp_pool]`): the plugin lets the logged-in peer have the address pppd
-  gives it.
-- The plugin is built for the pppd of the headers it is built against
-  (`pppd_version`); rebuild it when pppd is upgraded.
+The plugin asks modemmenu for the PAP login on an auth socket. Each call
+has its own auth socket. The environment of pppd gives the socket as
+`MODEMMENU_AUTH_SOCKET`. You can also give it as `{auth_socket}` to the
+`modemmenu-socket` option of the plugin.
+
+modemmenu checks the login in the same way as at the prompt. It does
+these checks in this sequence:
+
+1. The backends, `user_pattern`, `attempts` and `fail_delay`.
+2. The access rules of `[autoppp] item` (its `users`, `groups`,
+   `min_baud` and `callerids`).
+3. The time limits.
+
+The time that remains becomes the `maxconnect` of pppd. If the link
+continues after that time, modemmenu hangs up pppd a short time after.
+modemmenu records the call in the log. It counts the call in the daily
+use and in the last callers, the same as a login at the prompt. The
+scripts of pppd get the name of the caller (`PEERNAME`). They also get
+`MODEM_*` from modemmenu (the dialed number, the caller ID and the
+rate).
+
+- **PAP only.** For CHAP and MS-CHAPv2, the server must keep each
+  password, or an equivalent, in a form that it can read back. The
+  logins of modemmenu (bcrypt hashes, LDAP, PAM) do not keep passwords in
+  this form. The pppd in the sample refuses CHAP and MS-CHAPv2.
+- **The PAP password goes across the line as clear text.** On the
+  telephone network, the privacy of the line protected it. On SIP, the
+  password is in the RTP of the call. Give SRTP (and SIP over TLS) to
+  the trunk, or keep the trunk on a network that you trust.
+- **Fix the addresses** (`local:remote` on the command line of pppd,
+  from `[ppp_pool]`). The plugin lets the logged-in peer use the address
+  that pppd gives it.
+- The plugin is built for the pppd that agrees with its headers
+  (`pppd_version`). When you upgrade pppd, build the plugin again.
 
 ## Addresses, DNS and the callers' network
 
-Each PPP caller gets an address of its own from `[ppp_pool]`, a DNS
-server with overrides for the services this system provides, and a
-network kept apart from the host's: see
-[The dial-up network](dialup-network.md).
+Each PPP caller gets these items:
+
+- Its own address from `[ppp_pool]`.
+- A DNS server with overrides for the services of this system.
+- A network that is isolated from the network of the host.
+
+Refer to [The dial-up network](dialup-network.md).
