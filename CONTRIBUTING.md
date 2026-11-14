@@ -3,6 +3,9 @@
 Contributions are welcome: issues, fixes and features alike.  Before
 sending a change, run `make test` (see [docs/testing.md](docs/testing.md)).
 
+Write all technical documentation in ASD-STE100 Simplified Technical
+English. Follow [docs/STYLE.md](docs/STYLE.md).
+
 ## The contributor agreement
 
 modemmenu is offered under the AGPL-3.0 and, by the D-Modem Authors, under
