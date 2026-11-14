@@ -103,7 +103,7 @@ of D-Modem.
 
 Limit the trunk and the extension to one codec (ulaw or alaw), and
 disable fax detection. The line check page of D-Modem lists the
-remaining problems.
+problems that remain.
 
 ## The menu
 

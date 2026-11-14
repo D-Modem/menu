@@ -61,8 +61,8 @@ Then configure an `app_dmodem` profile to use modemmenu ([docs/running.md](docs/
 
 The documentation is also a website, [d-modem.github.io/menu](https://d-modem.github.io/menu/). Some reference pages on the website come from the code.
 
-[docs/](docs/README.md) has information about these topics: building,
-running, configuration, authentication, PPP, security and the tests.
+[docs/](docs/README.md) has information about these topics: the build,
+operation, configuration, authentication, PPP, security and the tests.
 [samples/modemmenu.conf.sample](samples/modemmenu.conf.sample) has all the options.
 
 ## The D-Modem suite
